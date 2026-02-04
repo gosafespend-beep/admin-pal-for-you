@@ -12,6 +12,7 @@ interface StatsCardProps {
     isPositive: boolean;
   };
   className?: string;
+  variant?: "default" | "primary" | "success" | "warning";
 }
 
 export function StatsCard({ 
@@ -20,16 +21,35 @@ export function StatsCard({
   subtitle, 
   icon: Icon, 
   trend,
-  className 
+  className,
+  variant = "default"
 }: StatsCardProps) {
+  const variantStyles = {
+    default: "bg-card/50 border-border/50",
+    primary: "bg-primary/5 border-primary/20",
+    success: "bg-primary/5 border-primary/20",
+    warning: "bg-warning/5 border-warning/20",
+  };
+
+  const iconStyles = {
+    default: "bg-muted text-muted-foreground",
+    primary: "bg-primary/10 text-primary",
+    success: "bg-primary/10 text-primary",
+    warning: "bg-warning/10 text-warning",
+  };
+
   return (
-    <Card className={cn("overflow-hidden", className)}>
+    <Card className={cn(
+      "overflow-hidden backdrop-blur-sm border transition-all duration-200 hover:border-primary/30",
+      variantStyles[variant],
+      className
+    )}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
             <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-bold tracking-tight">{value}</p>
+              <p className="text-2xl font-bold tracking-tight text-foreground">{value}</p>
               {trend && (
                 <span
                   className={cn(
@@ -45,8 +65,11 @@ export function StatsCard({
               <p className="text-xs text-muted-foreground">{subtitle}</p>
             )}
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-5 w-5 text-primary" />
+          <div className={cn(
+            "flex h-12 w-12 items-center justify-center rounded-xl",
+            iconStyles[variant]
+          )}>
+            <Icon className="h-6 w-6" />
           </div>
         </div>
       </CardContent>

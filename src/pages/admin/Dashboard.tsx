@@ -2,19 +2,24 @@ import {
   Users, 
   Receipt, 
   Wallet, 
-  TrendingUp, 
   CreditCard,
   Target,
   FileText,
   ClipboardList,
   ArrowDownLeft,
   ArrowUpRight,
-  RefreshCw
+  RefreshCw,
+  TrendingUp,
+  Activity
 } from "lucide-react";
 import { StatsCard } from "@/components/admin/StatsCard";
-import { useAdminStats } from "@/hooks/admin/useAdminStats";
+import { TransactionVolumeChart } from "@/components/admin/charts/TransactionVolumeChart";
+import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart";
+import { CategoryDistributionChart } from "@/components/admin/charts/CategoryDistributionChart";
+import { useAdminDashboardStats } from "@/hooks/admin/useAdminDashboardStats";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-KE', {
@@ -31,7 +36,7 @@ function formatNumber(num: number): string {
 
 function StatsCardSkeleton() {
   return (
-    <Card>
+    <Card className="glass-card">
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-2">
@@ -39,7 +44,7 @@ function StatsCardSkeleton() {
             <Skeleton className="h-8 w-24" />
             <Skeleton className="h-3 w-16" />
           </div>
-          <Skeleton className="h-10 w-10 rounded-lg" />
+          <Skeleton className="h-12 w-12 rounded-xl" />
         </div>
       </CardContent>
     </Card>
@@ -47,20 +52,29 @@ function StatsCardSkeleton() {
 }
 
 export default function Dashboard() {
-  const { data: stats, isLoading, error } = useAdminStats();
+  const { data: stats, isLoading, error } = useAdminDashboardStats();
 
   if (error) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <p className="text-destructive">Failed to load dashboard stats</p>
+      <div className="flex flex-col items-center justify-center p-8 space-y-4">
+        <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
+          <Activity className="h-8 w-8 text-destructive" />
+        </div>
+        <p className="text-destructive font-medium">Failed to load dashboard stats</p>
+        <p className="text-sm text-muted-foreground">Please check your connection and try again</p>
       </div>
     );
   }
 
+  const savingsProgress = stats?.features.totalSavingsTarget 
+    ? (stats.features.totalSavingsProgress / stats.features.totalSavingsTarget) * 100 
+    : 0;
+
   return (
     <div className="space-y-8">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
         <p className="text-muted-foreground">
           Platform overview and key metrics for Go Safe Spend
         </p>
@@ -79,25 +93,27 @@ export default function Dashboard() {
           <>
             <StatsCard
               title="Total Users"
-              value={formatNumber(stats?.totalUsers || 0)}
-              subtitle="Registered profiles"
+              value={formatNumber(stats?.overview.totalUsers || 0)}
+              subtitle="Registered users"
               icon={Users}
+              variant="primary"
             />
             <StatsCard
               title="Total Transactions"
-              value={formatNumber((stats?.totalExpenses || 0) + (stats?.totalIncomes || 0) + (stats?.totalTransfers || 0))}
-              subtitle="Expenses + Incomes + Transfers"
+              value={formatNumber(stats?.overview.totalTransactions || 0)}
+              subtitle={`${formatNumber(stats?.overview.totalExpenses || 0)} expenses • ${formatNumber(stats?.overview.totalIncomes || 0)} incomes`}
               icon={Receipt}
             />
             <StatsCard
               title="Platform Volume"
-              value={formatCurrency((stats?.totalExpenseAmount || 0) + (stats?.totalIncomeAmount || 0))}
+              value={formatCurrency(stats?.overview.platformVolume || 0)}
               subtitle="Total money tracked"
               icon={Wallet}
+              variant="success"
             />
             <StatsCard
               title="Waitlist"
-              value={formatNumber(stats?.waitlistCount || 0)}
+              value={formatNumber(stats?.overview.waitlistCount || 0)}
               subtitle="Pending signups"
               icon={ClipboardList}
             />
@@ -105,10 +121,22 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* Charts Row */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TransactionVolumeChart 
+          data={stats?.charts.monthlyData || []} 
+          isLoading={isLoading} 
+        />
+        <CategoryDistributionChart 
+          data={stats?.charts.topCategories || []} 
+          isLoading={isLoading} 
+        />
+      </div>
+
       {/* Financial Breakdown */}
       <div>
-        <h2 className="mb-4 text-xl font-semibold">Financial Overview</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <h2 className="mb-4 text-xl font-semibold text-foreground">Financial Overview</h2>
+        <div className="grid gap-4 md:grid-cols-3">
           {isLoading ? (
             <>
               <StatsCardSkeleton />
@@ -119,19 +147,20 @@ export default function Dashboard() {
             <>
               <StatsCard
                 title="Total Expenses"
-                value={formatCurrency(stats?.totalExpenseAmount || 0)}
-                subtitle={`${formatNumber(stats?.totalExpenses || 0)} transactions`}
+                value={formatCurrency(stats?.overview.totalExpenseAmount || 0)}
+                subtitle={`${formatNumber(stats?.overview.totalExpenses || 0)} transactions`}
                 icon={ArrowUpRight}
               />
               <StatsCard
                 title="Total Income"
-                value={formatCurrency(stats?.totalIncomeAmount || 0)}
-                subtitle={`${formatNumber(stats?.totalIncomes || 0)} transactions`}
+                value={formatCurrency(stats?.overview.totalIncomeAmount || 0)}
+                subtitle={`${formatNumber(stats?.overview.totalIncomes || 0)} transactions`}
                 icon={ArrowDownLeft}
+                variant="success"
               />
               <StatsCard
                 title="Transfers"
-                value={formatNumber(stats?.totalTransfers || 0)}
+                value={formatNumber(stats?.overview.totalTransfers || 0)}
                 subtitle="Between accounts"
                 icon={RefreshCw}
               />
@@ -140,9 +169,15 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* User Growth Chart */}
+      <UserGrowthChart 
+        data={stats?.charts.userSignups || []} 
+        isLoading={isLoading} 
+      />
+
       {/* Platform Features */}
       <div>
-        <h2 className="mb-4 text-xl font-semibold">Platform Features</h2>
+        <h2 className="mb-4 text-xl font-semibold text-foreground">Platform Features</h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {isLoading ? (
             <>
@@ -155,68 +190,102 @@ export default function Dashboard() {
             <>
               <StatsCard
                 title="Accounts"
-                value={formatNumber(stats?.totalAccounts || 0)}
+                value={formatNumber(stats?.features.totalAccounts || 0)}
                 subtitle="User accounts"
                 icon={CreditCard}
               />
               <StatsCard
                 title="Bills"
-                value={formatNumber(stats?.totalBills || 0)}
-                subtitle="Recurring bills"
+                value={formatNumber(stats?.features.totalBills || 0)}
+                subtitle={`${stats?.features.activeBills || 0} active`}
                 icon={FileText}
               />
               <StatsCard
                 title="Debts"
-                value={formatNumber(stats?.totalDebts || 0)}
-                subtitle="Active debts"
+                value={formatCurrency(stats?.features.totalDebtBalance || 0)}
+                subtitle={`${stats?.features.activeDebts || 0} active debts`}
                 icon={TrendingUp}
               />
               <StatsCard
                 title="Savings Goals"
-                value={formatNumber(stats?.totalSavingsGoals || 0)}
-                subtitle="Active goals"
+                value={formatNumber(stats?.features.totalSavingsGoals || 0)}
+                subtitle={`${stats?.features.completedGoals || 0} completed`}
                 icon={Target}
+                variant="success"
               />
             </>
           )}
         </div>
       </div>
 
-      {/* Quick Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Platform Summary</CardTitle>
-          <CardDescription>
-            Quick overview of your Go Safe Spend platform
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-            </div>
-          ) : (
-            <div className="grid gap-4 text-sm md:grid-cols-2">
+      {/* Savings Progress & Summary */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle>Savings Progress</CardTitle>
+            <CardDescription>
+              Platform-wide savings goals progress
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {formatCurrency(stats?.features.totalSavingsProgress || 0)} saved
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(stats?.features.totalSavingsTarget || 0)} goal
+                  </span>
+                </div>
+                <Progress value={savingsProgress} className="h-3" />
+                <p className="text-xs text-muted-foreground">
+                  {savingsProgress.toFixed(1)}% of total savings goals achieved
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle>Platform Summary</CardTitle>
+            <CardDescription>
+              Quick overview of Go Safe Spend
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
               <div className="space-y-2">
-                <p className="text-muted-foreground">
-                  Your platform is tracking <strong className="text-foreground">{formatCurrency(stats?.totalExpenseAmount || 0)}</strong> in expenses
-                  and <strong className="text-foreground">{formatCurrency(stats?.totalIncomeAmount || 0)}</strong> in income
-                  across <strong className="text-foreground">{stats?.totalUsers || 0}</strong> users.
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ) : (
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  Your platform is tracking <span className="font-medium text-foreground">{formatCurrency(stats?.overview.totalExpenseAmount || 0)}</span> in expenses
+                  and <span className="font-medium text-foreground">{formatCurrency(stats?.overview.totalIncomeAmount || 0)}</span> in income
+                  across <span className="font-medium text-foreground">{stats?.overview.totalUsers || 0}</span> users.
+                </p>
+                <p>
+                  Users have created <span className="font-medium text-foreground">{stats?.features.totalAccounts || 0}</span> accounts,
+                  set up <span className="font-medium text-foreground">{stats?.features.totalBills || 0}</span> recurring bills,
+                  and are working towards <span className="font-medium text-foreground">{stats?.features.totalSavingsGoals || 0}</span> savings goals.
+                </p>
+                <p>
+                  Total categories in use: <span className="font-medium text-foreground">{stats?.features.totalCategories || 0}</span>
                 </p>
               </div>
-              <div className="space-y-2">
-                <p className="text-muted-foreground">
-                  Users have created <strong className="text-foreground">{stats?.totalAccounts || 0}</strong> accounts,
-                  set up <strong className="text-foreground">{stats?.totalBills || 0}</strong> recurring bills,
-                  and are working towards <strong className="text-foreground">{stats?.totalSavingsGoals || 0}</strong> savings goals.
-                </p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
