@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Search, 
   Filter, 
@@ -230,8 +231,17 @@ export default function Users() {
 }
 
 function UserRow({ user }: { user: AdminUser }) {
+  const navigate = useNavigate();
+  
+  const handleViewDetails = () => {
+    navigate(`/admin/users/${user.id}`);
+  };
+  
   return (
-    <TableRow className="border-border/30 hover:bg-card/50 transition-colors">
+    <TableRow 
+      className="border-border/30 hover:bg-card/50 transition-colors cursor-pointer"
+      onClick={handleViewDetails}
+    >
       <TableCell>
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 border-2 border-border/50">
@@ -280,10 +290,10 @@ function UserRow({ user }: { user: AdminUser }) {
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[180px]">
+          <DropdownMenuContent align="end" className="w-[180px]" onClick={(e) => e.stopPropagation()}>
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2">
+            <DropdownMenuItem className="gap-2" onClick={handleViewDetails}>
               <Eye className="h-4 w-4" />
               View Details
             </DropdownMenuItem>
