@@ -7,6 +7,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -29,14 +30,14 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 const mainNavItems = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Users", url: "/admin/users", icon: Users },
-  { title: "Transactions", url: "/admin/transactions", icon: Receipt },
-  { title: "Waitlist", url: "/admin/waitlist", icon: ClipboardList },
+  { title: "Dashboard", url: "/admin", icon: LayoutDashboard, color: "text-primary" },
+  { title: "Users", url: "/admin/users", icon: Users, color: "text-info" },
+  { title: "Transactions", url: "/admin/transactions", icon: Receipt, color: "text-purple" },
+  { title: "Waitlist", url: "/admin/waitlist", icon: ClipboardList, color: "text-warning" },
 ];
 
 const settingsNavItems = [
-  { title: "Settings", url: "/admin/settings", icon: Settings },
+  { title: "Settings", url: "/admin/settings", icon: Settings, color: "text-muted-foreground" },
 ];
 
 interface AdminSidebarProps {
@@ -62,26 +63,30 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
     >
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg">
-            <img src={logo} alt="Go Safe Spend" className="h-10 w-10 object-contain" />
+          <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
+            <img src={logo} alt="Go Safe Spend" className="h-8 w-8 object-contain" />
+            <div className="absolute inset-0 bg-gradient-to-t from-primary/10 to-transparent" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="text-sm font-semibold text-sidebar-foreground">
+              <span className="text-sm font-bold text-sidebar-foreground tracking-tight">
                 Go Safe Spend
               </span>
-              <span className="text-xs text-muted-foreground">Admin Panel</span>
+              <span className="flex items-center gap-1 text-xs text-primary">
+                <Sparkles className="h-3 w-3" />
+                Admin Panel
+              </span>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <Separator className="mx-4 w-auto bg-sidebar-border" />
+      <Separator className="mx-4 w-auto bg-sidebar-border/50" />
 
       <SidebarContent className="px-2 py-4">
         <SidebarGroup>
-          <SidebarGroupLabel className="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Main
+          <SidebarGroupLabel className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+            Main Menu
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -92,9 +97,9 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
                     isActive={isActive(item.url)}
                     tooltip={item.title}
                     className={cn(
-                      "h-10 gap-3 rounded-lg transition-all duration-200",
+                      "h-11 gap-3 rounded-xl transition-all duration-200 group/item",
                       isActive(item.url) 
-                        ? "bg-primary/10 text-primary hover:bg-primary/15" 
+                        ? "bg-gradient-to-r from-primary/15 to-primary/5 text-primary border border-primary/20 shadow-sm" 
                         : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     )}
                   >
@@ -103,10 +108,17 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
                       end={item.url === "/admin"}
                       className="flex items-center gap-3"
                     >
-                      <item.icon className={cn(
-                        "h-5 w-5",
-                        isActive(item.url) && "text-primary"
-                      )} />
+                      <div className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200",
+                        isActive(item.url) 
+                          ? "bg-primary/20" 
+                          : "bg-muted/50 group-hover/item:bg-muted"
+                      )}>
+                        <item.icon className={cn(
+                          "h-4 w-4 transition-colors",
+                          isActive(item.url) ? "text-primary" : item.color
+                        )} />
+                      </div>
                       <span className="font-medium">{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
@@ -116,8 +128,8 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="mt-4">
-          <SidebarGroupLabel className="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <SidebarGroup className="mt-6">
+          <SidebarGroupLabel className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
             System
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -129,9 +141,9 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
                     isActive={isActive(item.url)}
                     tooltip={item.title}
                     className={cn(
-                      "h-10 gap-3 rounded-lg transition-all duration-200",
+                      "h-11 gap-3 rounded-xl transition-all duration-200 group/item",
                       isActive(item.url) 
-                        ? "bg-primary/10 text-primary hover:bg-primary/15" 
+                        ? "bg-gradient-to-r from-primary/15 to-primary/5 text-primary border border-primary/20 shadow-sm" 
                         : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     )}
                   >
@@ -139,10 +151,17 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
                       to={item.url}
                       className="flex items-center gap-3"
                     >
-                      <item.icon className={cn(
-                        "h-5 w-5",
-                        isActive(item.url) && "text-primary"
-                      )} />
+                      <div className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200",
+                        isActive(item.url) 
+                          ? "bg-primary/20" 
+                          : "bg-muted/50 group-hover/item:bg-muted"
+                      )}>
+                        <item.icon className={cn(
+                          "h-4 w-4",
+                          isActive(item.url) && "text-primary"
+                        )} />
+                      </div>
                       <span className="font-medium">{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
@@ -154,19 +173,25 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
       </SidebarContent>
 
       <SidebarFooter className="p-4">
-        <Separator className="mb-4 bg-sidebar-border" />
+        <Separator className="mb-4 bg-sidebar-border/50" />
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          className={cn(
+            "w-full justify-start gap-3 h-11 rounded-xl",
+            "text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
+            "transition-all duration-200"
+          )}
           onClick={onSignOut}
         >
-          <LogOut className="h-5 w-5" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/10">
+            <LogOut className="h-4 w-4 text-destructive" />
+          </div>
           {!collapsed && <span className="font-medium">Sign Out</span>}
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="mt-2 w-full justify-center text-muted-foreground hover:text-sidebar-foreground"
+          className="mt-2 w-full h-9 justify-center text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-lg"
           onClick={toggleSidebar}
         >
           {collapsed ? (

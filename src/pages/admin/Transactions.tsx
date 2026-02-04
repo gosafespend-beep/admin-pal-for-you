@@ -7,15 +7,15 @@ import {
   ArrowDownLeft,
   RefreshCw,
   Calendar,
+  TrendingUp,
+  TrendingDown,
   DollarSign
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 type TransactionType = "expenses" | "incomes" | "transfers";
 
@@ -75,12 +76,12 @@ function formatCurrency(amount: number): string {
 
 function TransactionRowSkeleton() {
   return (
-    <TableRow>
-      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+    <TableRow className="border-border/30">
+      <TableCell><div className="h-4 w-24 shimmer rounded" /></TableCell>
+      <TableCell><div className="h-4 w-20 shimmer rounded" /></TableCell>
+      <TableCell><div className="h-5 w-16 shimmer rounded-full" /></TableCell>
+      <TableCell><div className="h-4 w-32 shimmer rounded" /></TableCell>
+      <TableCell><div className="h-4 w-24 shimmer rounded" /></TableCell>
     </TableRow>
   );
 }
@@ -158,7 +159,7 @@ export default function Transactions() {
   ) || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Transactions</h1>
@@ -167,44 +168,53 @@ export default function Transactions() {
         </p>
       </div>
 
-      {/* Stats */}
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="glass-card">
+        <Card className="glass-card border-l-4 border-l-pink hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setActiveTab("expenses")}>
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
-                <ArrowUpRight className="h-5 w-5 text-destructive" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-pink">
+                  <TrendingDown className="h-6 w-6 text-pink-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{formatCurrency(totalExpenses)}</p>
+                  <p className="text-sm text-muted-foreground">{expenses?.length || 0} Expenses</p>
+                </div>
               </div>
-              <div>
-                <p className="text-lg font-bold">{formatCurrency(totalExpenses)}</p>
-                <p className="text-xs text-muted-foreground">{expenses?.length || 0} Expenses</p>
-              </div>
+              <ArrowUpRight className="h-5 w-5 text-pink" />
             </div>
           </CardContent>
         </Card>
-        <Card className="glass-card">
+        <Card className="glass-card border-l-4 border-l-primary hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setActiveTab("incomes")}>
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <ArrowDownLeft className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary">
+                  <TrendingUp className="h-6 w-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{formatCurrency(totalIncomes)}</p>
+                  <p className="text-sm text-muted-foreground">{incomes?.length || 0} Incomes</p>
+                </div>
               </div>
-              <div>
-                <p className="text-lg font-bold">{formatCurrency(totalIncomes)}</p>
-                <p className="text-xs text-muted-foreground">{incomes?.length || 0} Incomes</p>
-              </div>
+              <ArrowDownLeft className="h-5 w-5 text-primary" />
             </div>
           </CardContent>
         </Card>
-        <Card className="glass-card">
+        <Card className="glass-card border-l-4 border-l-purple hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setActiveTab("transfers")}>
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                <RefreshCw className="h-5 w-5 text-muted-foreground" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-purple">
+                  <RefreshCw className="h-6 w-6 text-purple-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{formatCurrency(totalTransfers)}</p>
+                  <p className="text-sm text-muted-foreground">{transfers?.length || 0} Transfers</p>
+                </div>
               </div>
-              <div>
-                <p className="text-lg font-bold">{formatCurrency(totalTransfers)}</p>
-                <p className="text-xs text-muted-foreground">{transfers?.length || 0} Transfers</p>
-              </div>
+              <RefreshCw className="h-5 w-5 text-purple" />
             </div>
           </CardContent>
         </Card>
@@ -214,7 +224,7 @@ export default function Transactions() {
       <Card className="glass-card">
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Filter className="h-5 w-5" />
+            <Filter className="h-5 w-5 text-muted-foreground" />
             Filters
           </CardTitle>
         </CardHeader>
@@ -226,11 +236,11 @@ export default function Transactions() {
                 placeholder="Search by category, source, note, or reference..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-background/50"
+                className="pl-10 bg-background/50 border-border/50 focus:border-primary/50"
               />
             </div>
             <Select value={limit} onValueChange={setLimit}>
-              <SelectTrigger className="w-full md:w-[180px] bg-background/50">
+              <SelectTrigger className="w-full md:w-[180px] bg-background/50 border-border/50">
                 <SelectValue placeholder="Limit" />
               </SelectTrigger>
               <SelectContent>
@@ -245,35 +255,53 @@ export default function Transactions() {
       </Card>
 
       {/* Transactions Tabs */}
-      <Card className="glass-card">
+      <Card className="glass-card overflow-hidden">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TransactionType)}>
-          <CardHeader>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="expenses" className="gap-2">
+          <CardHeader className="pb-0">
+            <TabsList className="grid w-full grid-cols-3 bg-muted/30 p-1">
+              <TabsTrigger 
+                value="expenses" 
+                className={cn(
+                  "gap-2 data-[state=active]:bg-pink/10 data-[state=active]:text-pink",
+                  "data-[state=active]:shadow-sm"
+                )}
+              >
                 <ArrowUpRight className="h-4 w-4" />
                 Expenses
               </TabsTrigger>
-              <TabsTrigger value="incomes" className="gap-2">
+              <TabsTrigger 
+                value="incomes" 
+                className={cn(
+                  "gap-2 data-[state=active]:bg-primary/10 data-[state=active]:text-primary",
+                  "data-[state=active]:shadow-sm"
+                )}
+              >
                 <ArrowDownLeft className="h-4 w-4" />
                 Incomes
               </TabsTrigger>
-              <TabsTrigger value="transfers" className="gap-2">
+              <TabsTrigger 
+                value="transfers" 
+                className={cn(
+                  "gap-2 data-[state=active]:bg-purple/10 data-[state=active]:text-purple",
+                  "data-[state=active]:shadow-sm"
+                )}
+              >
                 <RefreshCw className="h-4 w-4" />
                 Transfers
               </TabsTrigger>
             </TabsList>
           </CardHeader>
 
-          <CardContent>
+          <CardContent className="pt-6">
             <TabsContent value="expenses" className="mt-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-border/50 hover:bg-transparent">
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Note</TableHead>
-                    <TableHead>Reference</TableHead>
+                  <TableRow className="border-border/30 hover:bg-transparent">
+                    <TableHead className="text-muted-foreground">Date</TableHead>
+                    <TableHead className="text-muted-foreground">Amount</TableHead>
+                    <TableHead className="text-muted-foreground">Category</TableHead>
+                    <TableHead className="text-muted-foreground">Note</TableHead>
+                    <TableHead className="text-muted-foreground">Reference</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -282,16 +310,20 @@ export default function Transactions() {
                       <TransactionRowSkeleton />
                       <TransactionRowSkeleton />
                       <TransactionRowSkeleton />
+                      <TransactionRowSkeleton />
                     </>
                   ) : filteredExpenses.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
-                        <p className="text-muted-foreground">No expenses found</p>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <Receipt className="h-8 w-8 text-muted-foreground/50" />
+                          <p className="text-muted-foreground">No expenses found</p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredExpenses.map((expense) => (
-                      <TableRow key={expense.id} className="border-border/50">
+                      <TableRow key={expense.id} className="border-border/30 hover:bg-card/50">
                         <TableCell>
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -299,12 +331,12 @@ export default function Transactions() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="font-medium text-destructive">
+                          <span className="font-semibold text-pink">
                             -{formatCurrency(expense.amount)}
                           </span>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="bg-muted">
+                          <Badge className="bg-pink/10 text-pink border border-pink/20">
                             {expense.category}
                           </Badge>
                         </TableCell>
@@ -324,12 +356,12 @@ export default function Transactions() {
             <TabsContent value="incomes" className="mt-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-border/50 hover:bg-transparent">
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead>Note</TableHead>
-                    <TableHead>Reference</TableHead>
+                  <TableRow className="border-border/30 hover:bg-transparent">
+                    <TableHead className="text-muted-foreground">Date</TableHead>
+                    <TableHead className="text-muted-foreground">Amount</TableHead>
+                    <TableHead className="text-muted-foreground">Source</TableHead>
+                    <TableHead className="text-muted-foreground">Note</TableHead>
+                    <TableHead className="text-muted-foreground">Reference</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -338,16 +370,20 @@ export default function Transactions() {
                       <TransactionRowSkeleton />
                       <TransactionRowSkeleton />
                       <TransactionRowSkeleton />
+                      <TransactionRowSkeleton />
                     </>
                   ) : filteredIncomes.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
-                        <p className="text-muted-foreground">No incomes found</p>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <DollarSign className="h-8 w-8 text-muted-foreground/50" />
+                          <p className="text-muted-foreground">No incomes found</p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredIncomes.map((income) => (
-                      <TableRow key={income.id} className="border-border/50">
+                      <TableRow key={income.id} className="border-border/30 hover:bg-card/50">
                         <TableCell>
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -355,12 +391,12 @@ export default function Transactions() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="font-medium text-primary">
+                          <span className="font-semibold text-primary">
                             +{formatCurrency(income.amount)}
                           </span>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="bg-primary/10 text-primary">
+                          <Badge className="bg-primary/10 text-primary border border-primary/20">
                             {income.source}
                           </Badge>
                         </TableCell>
@@ -380,11 +416,11 @@ export default function Transactions() {
             <TabsContent value="transfers" className="mt-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-border/50 hover:bg-transparent">
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Note</TableHead>
-                    <TableHead>Reference</TableHead>
+                  <TableRow className="border-border/30 hover:bg-transparent">
+                    <TableHead className="text-muted-foreground">Date</TableHead>
+                    <TableHead className="text-muted-foreground">Amount</TableHead>
+                    <TableHead className="text-muted-foreground">Note</TableHead>
+                    <TableHead className="text-muted-foreground">Reference</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -393,16 +429,20 @@ export default function Transactions() {
                       <TransactionRowSkeleton />
                       <TransactionRowSkeleton />
                       <TransactionRowSkeleton />
+                      <TransactionRowSkeleton />
                     </>
                   ) : filteredTransfers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="h-24 text-center">
-                        <p className="text-muted-foreground">No transfers found</p>
+                      <TableCell colSpan={4} className="h-32 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <RefreshCw className="h-8 w-8 text-muted-foreground/50" />
+                          <p className="text-muted-foreground">No transfers found</p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredTransfers.map((transfer) => (
-                      <TableRow key={transfer.id} className="border-border/50">
+                      <TableRow key={transfer.id} className="border-border/30 hover:bg-card/50">
                         <TableCell>
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -410,7 +450,7 @@ export default function Transactions() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="font-medium">
+                          <span className="font-semibold text-purple">
                             {formatCurrency(transfer.amount)}
                           </span>
                         </TableCell>
