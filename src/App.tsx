@@ -11,6 +11,7 @@ import AdminLogin from "./pages/admin/AdminLogin";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Users from "./pages/admin/Users";
+import UserDetail from "./pages/admin/UserDetail";
 import Transactions from "./pages/admin/Transactions";
 import Waitlist from "./pages/admin/Waitlist";
 import Settings from "./pages/admin/Settings";
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="users" element={<Users />} />
+            <Route path="users/:id" element={<UserDetail />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="waitlist" element={<Waitlist />} />
             <Route path="settings" element={<Settings />} />
