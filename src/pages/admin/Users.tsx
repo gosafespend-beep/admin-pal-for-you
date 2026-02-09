@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/select";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { AdminErrorState } from "@/components/admin/AdminErrorState";
+import { MobileCardList } from "@/components/admin/MobileCardList";
 
 function UserRowSkeleton() {
   return (
@@ -75,6 +77,7 @@ function exportToCSV(data: AdminUser[], filename: string) {
 }
 
 export default function Users() {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<AdminUsersFilters>({
     search: "",
     role: "",
@@ -99,12 +102,13 @@ export default function Users() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 space-y-4 min-h-[400px]">
-        <div className="h-20 w-20 rounded-2xl bg-destructive/10 flex items-center justify-center">
-          <UserIcon className="h-10 w-10 text-destructive" />
-        </div>
-        <p className="text-destructive font-semibold text-lg">Failed to load users</p>
-        <p className="text-sm text-muted-foreground">Please check your connection and try again</p>
+      <div className="animate-fade-in">
+        <AdminErrorState
+          icon={UserIcon}
+          title="Failed to load users"
+          description="Please check your connection and try again."
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
@@ -251,7 +255,41 @@ export default function Users() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          {/* Mobile card view */}
+          {!isLoading && (
+            <MobileCardList
+              items={users}
+              renderCard={(user) => (
+                <div
+                  className="flex items-center gap-3 cursor-pointer"
+                  onClick={() => navigate(`/admin/users/${user.id}`)}
+                >
+                  <Avatar className="h-10 w-10 border-2 border-border/50">
+                    <AvatarImage src={user.avatar_url || undefined} />
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                      {user.display_name?.charAt(0) || user.email?.charAt(0) || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground truncate">{user.display_name || 'No name'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {user.is_admin && <Badge className="bg-purple/10 text-purple border-purple/20 text-xs"><Crown className="mr-1 h-3 w-3" />Admin</Badge>}
+                      {user.email_confirmed_at
+                        ? <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Verified</Badge>
+                        : <Badge className="bg-warning/10 text-warning border-warning/20 text-xs">Unverified</Badge>
+                      }
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {user.created_at ? format(new Date(user.created_at), 'MMM d') : ''}
+                  </span>
+                </div>
+              )}
+            />
+          )}
+          {/* Desktop table */}
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow className="border-border/30 hover:bg-transparent">
                 <TableHead className="text-muted-foreground">User</TableHead>

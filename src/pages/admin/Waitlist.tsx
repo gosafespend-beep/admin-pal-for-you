@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { useAdminWaitlist, useWaitlistActions, WaitlistFilters } from "@/hooks/admin/useAdminWaitlist";
+import { AdminErrorState } from "@/components/admin/AdminErrorState";
+import { MobileCardList } from "@/components/admin/MobileCardList";
 
 function exportToCSV(data: Record<string, unknown>[], filename: string) {
   if (!data.length) return;
@@ -66,7 +68,7 @@ export default function Waitlist() {
   });
   const [searchInput, setSearchInput] = useState("");
 
-  const { data, isLoading, refetch } = useAdminWaitlist(filters);
+  const { data, isLoading, error, refetch } = useAdminWaitlist(filters);
   const { updateStatus, deleteEntry } = useWaitlistActions();
 
   const entries = data?.data || [];
@@ -74,6 +76,19 @@ export default function Waitlist() {
   const totalPages = Math.ceil((data?.total || 0) / filters.pageSize);
 
   const handleSearch = () => setFilters(f => ({ ...f, search: searchInput, page: 1 }));
+
+  if (error) {
+    return (
+      <div className="animate-fade-in">
+        <AdminErrorState
+          icon={ClipboardList}
+          title="Failed to load waitlist"
+          description="Please check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -89,7 +104,7 @@ export default function Waitlist() {
             <RefreshCw className="h-4 w-4" />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportToCSV(entries as unknown as Record<string, unknown>[], "waitlist-export")}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportToCSV(entries as unknown as Record<string, unknown>[], "waitlist-export")} disabled={!entries.length}>
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
