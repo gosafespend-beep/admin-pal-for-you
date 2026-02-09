@@ -26,6 +26,7 @@ import { CategoryDistributionChart } from "@/components/admin/charts/CategoryDis
 import { QuickStatsGrid } from "@/components/admin/QuickStatsGrid";
 import { RecentActivity } from "@/components/admin/RecentActivity";
 import { useAdminDashboardStats } from "@/hooks/admin/useAdminDashboardStats";
+import { AdminErrorState } from "@/components/admin/AdminErrorState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -68,16 +69,17 @@ function StatsCardSkeleton() {
 }
 
 export default function Dashboard() {
-  const { data: stats, isLoading, error } = useAdminDashboardStats();
+  const { data: stats, isLoading, error, refetch } = useAdminDashboardStats();
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 space-y-4 min-h-[400px]">
-        <div className="h-20 w-20 rounded-2xl bg-destructive/10 flex items-center justify-center">
-          <Activity className="h-10 w-10 text-destructive" />
-        </div>
-        <p className="text-destructive font-semibold text-lg">Failed to load dashboard stats</p>
-        <p className="text-sm text-muted-foreground">Please check your connection and try again</p>
+      <div className="animate-fade-in">
+        <AdminErrorState
+          icon={Activity}
+          title="Failed to load dashboard stats"
+          description="Please check your connection and try again."
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }

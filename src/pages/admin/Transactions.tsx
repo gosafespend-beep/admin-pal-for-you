@@ -28,6 +28,8 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAdminTransactions, TransactionFilters } from "@/hooks/admin/useAdminTransactions";
+import { AdminErrorState } from "@/components/admin/AdminErrorState";
+import { MobileCardList } from "@/components/admin/MobileCardList";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-KE', {
@@ -76,7 +78,7 @@ export default function Transactions() {
 
   const [searchInput, setSearchInput] = useState("");
 
-  const { data, isLoading, refetch } = useAdminTransactions(filters);
+  const { data, isLoading, error, refetch } = useAdminTransactions(filters);
 
   const handleSearch = useCallback(() => {
     setFilters(f => ({ ...f, search: searchInput, page: 1 }));
@@ -91,6 +93,19 @@ export default function Transactions() {
   const items = activeData?.data || [];
   const total = activeData?.total || 0;
   const totalPages = Math.ceil(total / filters.pageSize);
+
+  if (error) {
+    return (
+      <div className="animate-fade-in">
+        <AdminErrorState
+          icon={Receipt}
+          title="Failed to load transactions"
+          description="Please check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -194,7 +209,29 @@ export default function Transactions() {
           </CardHeader>
 
           <CardContent className="pt-6">
-            <Table>
+            {/* Mobile card view */}
+            <MobileCardList
+              items={items as Record<string, unknown>[]}
+              renderCard={(item) => (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className={cn("font-semibold", filters.type === "expenses" ? "text-pink" : filters.type === "incomes" ? "text-primary" : "text-purple")}>
+                      {filters.type === "expenses" ? "-" : filters.type === "incomes" ? "+" : ""}{formatCurrency(Number(item.amount))}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{format(new Date(item.date as string), 'MMM d, yyyy')}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Badge className={cn("border text-xs", filters.type === "expenses" ? "bg-pink/10 text-pink border-pink/20" : filters.type === "incomes" ? "bg-primary/10 text-primary border-primary/20" : "bg-purple/10 text-purple border-purple/20")}>
+                      {(item.category || item.source || item.note || '-') as string}
+                    </Badge>
+                    <span className="font-mono text-xs text-muted-foreground">{(item.reference_number as string) || ''}</span>
+                  </div>
+                  {item.note && <p className="text-xs text-muted-foreground truncate">{item.note as string}</p>}
+                </div>
+              )}
+            />
+            {/* Desktop table */}
+            <Table className="hidden md:table">
               <TableHeader>
                 <TableRow className="border-border/30 hover:bg-transparent">
                   <TableHead className="text-muted-foreground">Date</TableHead>

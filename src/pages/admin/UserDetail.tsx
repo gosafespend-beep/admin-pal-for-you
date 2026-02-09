@@ -112,9 +112,14 @@ export default function UserDetail() {
         </div>
         <p className="text-destructive font-semibold text-lg">Failed to load user</p>
         <p className="text-sm text-muted-foreground">{error?.message || "User not found"}</p>
-        <Button variant="outline" onClick={() => navigate("/admin/users")}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Users
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Try Again
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/admin/users")}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Users
+          </Button>
+        </div>
       </div>
     );
   }

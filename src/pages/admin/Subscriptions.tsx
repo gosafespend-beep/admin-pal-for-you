@@ -10,6 +10,7 @@ import {
   Clock,
   XCircle,
   CreditCard,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAdminSubscriptions } from "@/hooks/admin/useAdminSubscriptions";
+import { AdminErrorState } from "@/components/admin/AdminErrorState";
+import { MobileCardList } from "@/components/admin/MobileCardList";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -54,7 +57,7 @@ export default function Subscriptions() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
-  const { data, isLoading } = useAdminSubscriptions({ page, pageSize, status, search });
+  const { data, isLoading, error, refetch } = useAdminSubscriptions({ page, pageSize, status, search });
 
   const totalPages = Math.ceil((data?.total || 0) / pageSize);
 
@@ -83,6 +86,19 @@ export default function Subscriptions() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  if (error) {
+    return (
+      <div className="animate-fade-in">
+        <AdminErrorState
+          icon={CreditCard}
+          title="Failed to load subscriptions"
+          description="Please check your connection and try again."
+          onRetry={() => refetch()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -156,7 +172,37 @@ export default function Subscriptions() {
       {/* Table */}
       <Card className="glass-card overflow-hidden">
         <CardContent className="p-0">
-          <Table>
+          {/* Mobile card view */}
+          {!isLoading && data?.subscriptions && (
+            <div className="md:hidden p-4 space-y-3">
+              {data.subscriptions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CreditCard className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  No subscriptions found
+                </div>
+              ) : data.subscriptions.map((sub) => {
+                const Icon = statusIcons[sub.status] || Zap;
+                return (
+                  <Card key={sub.id} className="glass-card">
+                    <CardContent className="p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground">{sub.userEmail}</span>
+                        <Badge className={`${statusColors[sub.status] || statusColors.expired} border text-xs`}>
+                          <Icon className="mr-1 h-3 w-3" />{sub.status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Plan: {sub.plan_type || "Free"}</span>
+                        <span>{format(new Date(sub.created_at), "MMM d, yyyy")}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+          {/* Desktop table */}
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow className="border-border/50 hover:bg-transparent">
                 <TableHead>User</TableHead>
