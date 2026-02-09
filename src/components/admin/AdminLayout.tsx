@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AdminSidebar } from "./AdminSidebar";
+import { AdminBreadcrumbs } from "./AdminBreadcrumbs";
+import { AdminSearch } from "./AdminSearch";
 import { useAdminAuth } from "@/hooks/admin/useAdminAuth";
 import { Loader2 } from "lucide-react";
 
@@ -40,10 +42,14 @@ export function AdminLayout() {
       <div className="flex min-h-screen w-full bg-background">
         <AdminSidebar onSignOut={signOut} />
         <SidebarInset className="flex flex-1 flex-col">
-          <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-xl">
+          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 md:px-6 backdrop-blur-xl">
             <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground" />
+            <div className="hidden md:block">
+              <AdminBreadcrumbs />
+            </div>
             <div className="flex-1" />
-            <div className="flex items-center gap-3">
+            <AdminSearch />
+            <div className="hidden md:flex items-center gap-3">
               <span className="text-sm text-muted-foreground">
                 {user.email}
               </span>
