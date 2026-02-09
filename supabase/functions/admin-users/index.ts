@@ -2,17 +2,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    // Get the authorization header from the request
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(
@@ -21,68 +19,56 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Create a Supabase client with the user's token
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-    // First, verify the user is an admin using their token
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     })
-
     const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
-    
     if (adminError || !isAdmin) {
       return new Response(
-        JSON.stringify({ error: 'Access denied. Admin privileges required.' }),
+        JSON.stringify({ error: 'Access denied' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Now use service role to fetch all users
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+    const url = new URL(req.url)
+    const page = parseInt(url.searchParams.get('page') || '1')
+    const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '20'), 100)
+    const search = url.searchParams.get('search') || ''
+    const roleFilter = url.searchParams.get('role') || ''
+    const verifiedFilter = url.searchParams.get('verified') || ''
+    const sortBy = url.searchParams.get('sortBy') || 'created_at'
+    const sortOrder = url.searchParams.get('sortOrder') || 'desc'
 
-    // Fetch auth users
-    const { data: { users }, error: usersError } = await adminClient.auth.admin.listUsers()
-    
-    if (usersError) {
-      throw usersError
+    // Fetch auth users (Supabase admin API doesn't support pagination well, so we fetch all and paginate in memory)
+    const { data: { users }, error: usersError } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+    if (usersError) throw usersError
+
+    // Fetch enrichment data in parallel
+    const [profilesResult, settingsResult, rolesResult] = await Promise.all([
+      adminClient.from('profiles').select('user_id, display_name, avatar_url'),
+      adminClient.from('user_settings').select('user_id, currency, theme, date_format'),
+      adminClient.from('user_roles').select('user_id, role'),
+    ])
+
+    const profilesMap = new Map((profilesResult.data || []).map(p => [p.user_id, p]))
+    const settingsMap = new Map((settingsResult.data || []).map(s => [s.user_id, s]))
+    const rolesMap = new Map<string, string[]>()
+    for (const r of (rolesResult.data || [])) {
+      const existing = rolesMap.get(r.user_id) || []
+      existing.push(r.role)
+      rolesMap.set(r.user_id, existing)
     }
 
-    // Fetch profiles to enrich user data
-    const { data: profiles, error: profilesError } = await adminClient
-      .from('profiles')
-      .select('*')
-
-    if (profilesError) {
-      throw profilesError
-    }
-
-    // Fetch user settings
-    const { data: settings, error: settingsError } = await adminClient
-      .from('user_settings')
-      .select('*')
-
-    if (settingsError) {
-      throw settingsError
-    }
-
-    // Fetch user roles
-    const { data: roles, error: rolesError } = await adminClient
-      .from('user_roles')
-      .select('*')
-
-    if (rolesError) {
-      throw rolesError
-    }
-
-    // Combine the data
-    const enrichedUsers = users.map(user => {
-      const profile = profiles?.find(p => p.user_id === user.id)
-      const userSettings = settings?.find(s => s.user_id === user.id)
-      const userRoles = roles?.filter(r => r.user_id === user.id).map(r => r.role) || []
-
+    // Enrich users
+    let enrichedUsers = users.map(user => {
+      const profile = profilesMap.get(user.id)
+      const settings = settingsMap.get(user.id)
+      const userRoles = rolesMap.get(user.id) || []
       return {
         id: user.id,
         email: user.email,
@@ -90,29 +76,66 @@ Deno.serve(async (req) => {
         created_at: user.created_at,
         updated_at: user.updated_at,
         last_sign_in_at: user.last_sign_in_at,
-        // Profile data
-        display_name: profile?.display_name,
-        avatar_url: profile?.avatar_url,
-        // Settings data
-        currency: userSettings?.currency || 'USD',
-        theme: userSettings?.theme || 'dark',
-        date_format: userSettings?.date_format || 'MM/dd/yyyy',
-        // Roles
+        banned_until: user.banned_until,
+        display_name: profile?.display_name || null,
+        avatar_url: profile?.avatar_url || null,
+        currency: settings?.currency || 'USD',
+        theme: settings?.theme || 'dark',
+        date_format: settings?.date_format || 'MM/dd/yyyy',
         roles: userRoles,
         is_admin: userRoles.includes('admin'),
       }
     })
 
+    // Apply filters
+    if (search) {
+      const s = search.toLowerCase()
+      enrichedUsers = enrichedUsers.filter(u =>
+        u.email?.toLowerCase().includes(s) ||
+        u.display_name?.toLowerCase().includes(s)
+      )
+    }
+    if (roleFilter === 'admin') {
+      enrichedUsers = enrichedUsers.filter(u => u.is_admin)
+    } else if (roleFilter === 'user') {
+      enrichedUsers = enrichedUsers.filter(u => !u.is_admin)
+    }
+    if (verifiedFilter === 'verified') {
+      enrichedUsers = enrichedUsers.filter(u => u.email_confirmed_at)
+    } else if (verifiedFilter === 'unverified') {
+      enrichedUsers = enrichedUsers.filter(u => !u.email_confirmed_at)
+    }
+
+    // Sort
+    enrichedUsers.sort((a, b) => {
+      const aVal = (a as Record<string, unknown>)[sortBy] as string || ''
+      const bVal = (b as Record<string, unknown>)[sortBy] as string || ''
+      const cmp = aVal > bVal ? 1 : aVal < bVal ? -1 : 0
+      return sortOrder === 'desc' ? -cmp : cmp
+    })
+
+    const total = enrichedUsers.length
+    const totalAdmins = enrichedUsers.filter(u => u.is_admin).length
+    const totalVerified = enrichedUsers.filter(u => u.email_confirmed_at).length
+    const totalSuspended = enrichedUsers.filter(u => u.banned_until && new Date(u.banned_until) > new Date()).length
+
+    // Paginate
+    const offset = (page - 1) * pageSize
+    const paginatedUsers = enrichedUsers.slice(offset, offset + pageSize)
+
     return new Response(
-      JSON.stringify({ users: enrichedUsers }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      JSON.stringify({
+        users: paginatedUsers,
+        total,
+        page,
+        pageSize,
+        stats: { totalAdmins, totalVerified, totalSuspended },
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    console.error('Error in admin-users function:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Error in admin-users:', error)
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
