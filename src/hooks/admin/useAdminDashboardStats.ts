@@ -26,6 +26,25 @@ export interface DashboardStats {
     totalSavingsProgress: number;
     totalSavingsTarget: number;
     totalCategories: number;
+    totalBudgets: number;
+    totalRecurring: number;
+    activeRecurring: number;
+    recurringMonthlyAmount: number;
+    totalSubscriptions: number;
+    activeTrials: number;
+    activeSubscriptions: number;
+    totalAssets: number;
+    totalLiabilities: number;
+    netWorth: number;
+    totalDebtPayments: number;
+    totalDebtPaymentAmount: number;
+    totalGoalContributions: number;
+    totalGoalContributionAmount: number;
+  };
+  trends: {
+    userTrend: number;
+    expenseTrend: number;
+    incomeTrend: number;
   };
   charts: {
     monthlyData: Array<{
@@ -50,7 +69,15 @@ export interface DashboardStats {
       count: number;
     }>;
   };
-  userActivity: Record<string, { expenses: number; incomes: number }>;
+  recentActivity: Array<{
+    id: string;
+    type: string;
+    amount: number;
+    description: string;
+    date: string;
+    userId: string;
+    createdAt: string;
+  }>;
 }
 
 export function useAdminDashboardStats() {
