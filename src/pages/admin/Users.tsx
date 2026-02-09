@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Search, 
@@ -11,36 +11,28 @@ import {
   Eye,
   UserCheck,
   UserX,
-  Crown
+  Crown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  RefreshCw,
+  Ban
 } from "lucide-react";
-import { useAdminUsers, AdminUser } from "@/hooks/admin/useAdminUsers";
+import { useAdminUsers, AdminUser, AdminUsersFilters } from "@/hooks/admin/useAdminUsers";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -58,6 +50,7 @@ function UserRowSkeleton() {
         </div>
       </TableCell>
       <TableCell><div className="h-5 w-16 shimmer rounded-full" /></TableCell>
+      <TableCell><div className="h-4 w-20 shimmer rounded" /></TableCell>
       <TableCell><div className="h-4 w-24 shimmer rounded" /></TableCell>
       <TableCell><div className="h-4 w-20 shimmer rounded" /></TableCell>
       <TableCell><div className="h-8 w-8 shimmer rounded" /></TableCell>
@@ -65,23 +58,44 @@ function UserRowSkeleton() {
   );
 }
 
+function exportToCSV(data: AdminUser[], filename: string) {
+  if (!data.length) return;
+  const headers = ['email', 'display_name', 'is_admin', 'email_confirmed_at', 'created_at', 'last_sign_in_at'];
+  const csvContent = [
+    headers.join(','),
+    ...data.map(u => headers.map(h => `"${String(h in u ? (u as unknown as Record<string, unknown>)[h] : '')}"`).join(','))
+  ].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Users() {
-  const { data: users, isLoading, error } = useAdminUsers();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [filters, setFilters] = useState<AdminUsersFilters>({
+    search: "",
+    role: "",
+    verified: "",
+    page: 1,
+    pageSize: 20,
+    sortBy: "created_at",
+    sortOrder: "desc",
+  });
+  const [searchInput, setSearchInput] = useState("");
 
-  // Filter users
-  const filteredUsers = users?.filter(user => {
-    const matchesSearch = 
-      user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.display_name?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesRole = roleFilter === "all" || 
-      (roleFilter === "admin" && user.is_admin) ||
-      (roleFilter === "user" && !user.is_admin);
+  const { data, isLoading, error, refetch } = useAdminUsers(filters);
 
-    return matchesSearch && matchesRole;
-  }) || [];
+  const users = data?.users || [];
+  const total = data?.total || 0;
+  const stats = data?.stats || { totalAdmins: 0, totalVerified: 0, totalSuspended: 0 };
+  const totalPages = Math.ceil(total / filters.pageSize);
+
+  const handleSearch = useCallback(() => {
+    setFilters(f => ({ ...f, search: searchInput, page: 1 }));
+  }, [searchInput]);
 
   if (error) {
     return (
@@ -98,50 +112,75 @@ export default function Users() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Users</h1>
-        <p className="text-muted-foreground">
-          Manage and view all platform users
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Users</h1>
+          <p className="text-muted-foreground">
+            Manage all platform users • {total} total
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportToCSV(users, "users-export")}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="glass-card border-l-4 border-l-primary hover:scale-[1.02] transition-transform">
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card className="glass-card border-l-4 border-l-primary hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, role: "", verified: "", page: 1 }))}>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary">
                 <UserIcon className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-3xl font-bold text-foreground">{users?.length || 0}</p>
+                <p className="text-3xl font-bold text-foreground">{total}</p>
                 <p className="text-sm text-muted-foreground">Total Users</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-l-4 border-l-purple hover:scale-[1.02] transition-transform">
+        <Card className="glass-card border-l-4 border-l-purple hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, role: "admin", page: 1 }))}>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-purple">
                 <Crown className="h-6 w-6 text-purple-foreground" />
               </div>
               <div>
-                <p className="text-3xl font-bold text-foreground">{users?.filter(u => u.is_admin).length || 0}</p>
+                <p className="text-3xl font-bold text-foreground">{stats.totalAdmins}</p>
                 <p className="text-sm text-muted-foreground">Admins</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-l-4 border-l-info hover:scale-[1.02] transition-transform">
+        <Card className="glass-card border-l-4 border-l-info hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, verified: "verified", page: 1 }))}>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-info">
                 <UserCheck className="h-6 w-6 text-info-foreground" />
               </div>
               <div>
-                <p className="text-3xl font-bold text-foreground">{users?.filter(u => u.email_confirmed_at).length || 0}</p>
+                <p className="text-3xl font-bold text-foreground">{stats.totalVerified}</p>
                 <p className="text-sm text-muted-foreground">Verified</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass-card border-l-4 border-l-destructive hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, role: "", verified: "", page: 1 }))}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10">
+                <Ban className="h-6 w-6 text-destructive" />
+              </div>
+              <div>
+                <p className="text-3xl font-bold text-foreground">{stats.totalSuspended}</p>
+                <p className="text-sm text-muted-foreground">Suspended</p>
               </div>
             </div>
           </CardContent>
@@ -157,26 +196,48 @@ export default function Users() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-4 md:flex-row">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="pl-10 bg-background/50 border-border/50 focus:border-primary/50"
               />
             </div>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-full md:w-[180px] bg-background/50 border-border/50">
-                <SelectValue placeholder="Filter by role" />
+            <Select value={filters.role || "all"} onValueChange={(v) => setFilters(f => ({ ...f, role: v === "all" ? "" : v, page: 1 }))}>
+              <SelectTrigger className="w-full md:w-[150px] bg-background/50 border-border/50">
+                <SelectValue placeholder="Role" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admins Only</SelectItem>
+                <SelectItem value="admin">Admins</SelectItem>
                 <SelectItem value="user">Users Only</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filters.verified || "all"} onValueChange={(v) => setFilters(f => ({ ...f, verified: v === "all" ? "" : v, page: 1 }))}>
+              <SelectTrigger className="w-full md:w-[150px] bg-background/50 border-border/50">
+                <SelectValue placeholder="Verification" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="verified">Verified</SelectItem>
+                <SelectItem value="unverified">Unverified</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={String(filters.pageSize)} onValueChange={(v) => setFilters(f => ({ ...f, pageSize: parseInt(v), page: 1 }))}>
+              <SelectTrigger className="w-full md:w-[100px] bg-background/50 border-border/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10/page</SelectItem>
+                <SelectItem value="20">20/page</SelectItem>
+                <SelectItem value="50">50/page</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={handleSearch}>Search</Button>
           </div>
         </CardContent>
       </Card>
@@ -184,9 +245,9 @@ export default function Users() {
       {/* Users Table */}
       <Card className="glass-card overflow-hidden">
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
+          <CardTitle>Users</CardTitle>
           <CardDescription>
-            {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''} found
+            Page {filters.page} of {totalPages || 1} ({total} total)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -195,6 +256,7 @@ export default function Users() {
               <TableRow className="border-border/30 hover:bg-transparent">
                 <TableHead className="text-muted-foreground">User</TableHead>
                 <TableHead className="text-muted-foreground">Role</TableHead>
+                <TableHead className="text-muted-foreground">Status</TableHead>
                 <TableHead className="text-muted-foreground">Joined</TableHead>
                 <TableHead className="text-muted-foreground">Last Active</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
@@ -202,15 +264,10 @@ export default function Users() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <>
-                  <UserRowSkeleton />
-                  <UserRowSkeleton />
-                  <UserRowSkeleton />
-                  <UserRowSkeleton />
-                </>
-              ) : filteredUsers.length === 0 ? (
+                Array.from({ length: 5 }).map((_, i) => <UserRowSkeleton key={i} />)
+              ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center">
+                  <TableCell colSpan={6} className="h-32 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <UserX className="h-8 w-8 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No users found</p>
@@ -218,12 +275,29 @@ export default function Users() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => (
+                users.map((user) => (
                   <UserRow key={user.id} user={user} />
                 ))
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-border/30">
+              <p className="text-sm text-muted-foreground">
+                Page {filters.page} of {totalPages}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}>
+                  <ChevronLeft className="h-4 w-4" /> Previous
+                </Button>
+                <Button variant="outline" size="sm" disabled={filters.page >= totalPages} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}>
+                  Next <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -232,15 +306,12 @@ export default function Users() {
 
 function UserRow({ user }: { user: AdminUser }) {
   const navigate = useNavigate();
-  
-  const handleViewDetails = () => {
-    navigate(`/admin/users/${user.id}`);
-  };
-  
+  const isSuspended = user.banned_until && new Date(user.banned_until) > new Date();
+
   return (
     <TableRow 
       className="border-border/30 hover:bg-card/50 transition-colors cursor-pointer"
-      onClick={handleViewDetails}
+      onClick={() => navigate(`/admin/users/${user.id}`)}
     >
       <TableCell>
         <div className="flex items-center gap-3">
@@ -251,24 +322,35 @@ function UserRow({ user }: { user: AdminUser }) {
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium text-foreground">
-              {user.display_name || 'No name'}
-            </p>
+            <p className="font-medium text-foreground">{user.display_name || 'No name'}</p>
             <p className="text-sm text-muted-foreground">{user.email}</p>
           </div>
         </div>
       </TableCell>
       <TableCell>
         {user.is_admin ? (
-          <Badge className="bg-purple/10 text-purple border border-purple/20 hover:bg-purple/20">
-            <Crown className="mr-1 h-3 w-3" />
-            Admin
+          <Badge className="bg-purple/10 text-purple border border-purple/20">
+            <Crown className="mr-1 h-3 w-3" /> Admin
           </Badge>
         ) : (
-          <Badge variant="secondary" className="bg-muted/50 text-muted-foreground border border-border/50">
-            User
-          </Badge>
+          <Badge variant="secondary" className="bg-muted/50 text-muted-foreground border border-border/50">User</Badge>
         )}
+      </TableCell>
+      <TableCell>
+        <div className="flex gap-1 flex-wrap">
+          {user.email_confirmed_at ? (
+            <Badge className="bg-primary/10 text-primary border border-primary/20 text-xs">
+              <UserCheck className="mr-1 h-3 w-3" /> Verified
+            </Badge>
+          ) : (
+            <Badge className="bg-warning/10 text-warning border border-warning/20 text-xs">Unverified</Badge>
+          )}
+          {isSuspended && (
+            <Badge variant="destructive" className="text-xs">
+              <Ban className="mr-1 h-3 w-3" /> Suspended
+            </Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -286,25 +368,18 @@ function UserRow({ user }: { user: AdminUser }) {
       <TableCell>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" onClick={(e) => e.stopPropagation()}>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[180px]" onClick={(e) => e.stopPropagation()}>
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2" onClick={handleViewDetails}>
-              <Eye className="h-4 w-4" />
-              View Details
+            <DropdownMenuItem className="gap-2" onClick={() => navigate(`/admin/users/${user.id}`)}>
+              <Eye className="h-4 w-4" /> View Details
             </DropdownMenuItem>
             <DropdownMenuItem className="gap-2">
-              <Mail className="h-4 w-4" />
-              Send Email
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive gap-2">
-              <UserX className="h-4 w-4" />
-              Suspend User
+              <Mail className="h-4 w-4" /> Send Email
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
