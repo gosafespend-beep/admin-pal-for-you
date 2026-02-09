@@ -1,1 +1,19 @@
 project_id = "qeogqvjqvafbzufanwki"
+
+[functions.admin-stats]
+verify_jwt = false
+
+[functions.admin-user-detail]
+verify_jwt = false
+
+[functions.admin-user-actions]
+verify_jwt = false
+
+[functions.admin-users]
+verify_jwt = false
+
+[functions.admin-transactions]
+verify_jwt = false
+
+[functions.admin-waitlist]
+verify_jwt = false

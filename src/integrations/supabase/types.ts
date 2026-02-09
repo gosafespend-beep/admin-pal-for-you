@@ -681,6 +681,63 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_log: {
+        Row: {
+          id: string
+          notification_type: string
+          reference_id: string
+          reference_period: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          notification_type: string
+          reference_id: string
+          reference_period: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          notification_type?: string
+          reference_id?: string
+          reference_period?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_preferences: {
+        Row: {
+          bill_reminders: boolean
+          budget_alerts: boolean
+          created_at: string
+          id: string
+          marketing_emails: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bill_reminders?: boolean
+          budget_alerts?: boolean
+          created_at?: string
+          id?: string
+          marketing_emails?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bill_reminders?: boolean
+          budget_alerts?: boolean
+          created_at?: string
+          id?: string
+          marketing_emails?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -832,6 +889,57 @@ export type Database = {
           },
         ]
       }
+      subscriptions: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          paystack_customer_code: string | null
+          paystack_email_token: string | null
+          paystack_subscription_code: string | null
+          plan_type: string | null
+          status: string
+          trial_end: string
+          trial_start: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          paystack_customer_code?: string | null
+          paystack_email_token?: string | null
+          paystack_subscription_code?: string | null
+          plan_type?: string | null
+          status?: string
+          trial_end?: string
+          trial_start?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          paystack_customer_code?: string | null
+          paystack_email_token?: string | null
+          paystack_subscription_code?: string | null
+          plan_type?: string | null
+          status?: string
+          trial_end?: string
+          trial_start?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transfers: {
         Row: {
           amount: number
@@ -975,6 +1083,44 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_account_types: {
+        Args: never
+        Returns: {
+          account_type: string
+          count: number
+        }[]
+      }
+      admin_monthly_transaction_stats: {
+        Args: never
+        Returns: {
+          expense_count: number
+          expense_total: number
+          income_count: number
+          income_total: number
+          month_key: string
+          month_label: string
+        }[]
+      }
+      admin_overview_stats: { Args: never; Returns: Json }
+      admin_recent_activity: {
+        Args: { p_limit?: number }
+        Returns: {
+          amount: number
+          created_at: string
+          date: string
+          description: string
+          id: string
+          type: string
+          user_id: string
+        }[]
+      }
+      admin_top_categories: {
+        Args: { p_limit?: number }
+        Returns: {
+          category: string
+          total_amount: number
+        }[]
+      }
       get_next_ref_number: {
         Args: { p_prefix: string; p_table_name: string; p_user_id: string }
         Returns: string
@@ -997,6 +1143,20 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      list_user_sessions: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          ip: unknown
+          session_id: string
+          updated_at: string
+          user_agent: string
+        }[]
+      }
+      revoke_user_session: {
+        Args: { p_session_id: string; p_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

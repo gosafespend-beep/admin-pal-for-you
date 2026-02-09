@@ -10,12 +10,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface ActivityItem {
+export interface ActivityItem {
   id: string;
-  type: "expense" | "income" | "signup" | "goal" | "account" | "debt";
+  type: "expense" | "income" | "transfer" | "signup" | "goal" | "account" | "debt";
   description: string;
   amount?: number;
-  timestamp: string;
+  timestamp?: string;
+  date?: string;
+  userId?: string;
 }
 
 interface RecentActivityProps {
@@ -23,7 +25,7 @@ interface RecentActivityProps {
   isLoading?: boolean;
 }
 
-const activityConfig = {
+const activityConfig: Record<string, { icon: React.ElementType; bgColor: string; iconColor: string; borderColor: string }> = {
   expense: {
     icon: ArrowUpRight,
     bgColor: "bg-pink/10",
@@ -35,6 +37,12 @@ const activityConfig = {
     bgColor: "bg-primary/10",
     iconColor: "text-primary",
     borderColor: "border-l-primary",
+  },
+  transfer: {
+    icon: ArrowUpRight,
+    bgColor: "bg-purple/10",
+    iconColor: "text-purple",
+    borderColor: "border-l-purple",
   },
   signup: {
     icon: UserPlus,
@@ -132,7 +140,7 @@ export function RecentActivity({ activities, isLoading }: RecentActivityProps) {
                       {activity.description}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {activity.timestamp}
+                      {activity.timestamp || activity.date || ''}
                     </p>
                   </div>
                   {activity.amount !== undefined && (

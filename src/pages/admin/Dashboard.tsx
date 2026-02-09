@@ -1,4 +1,5 @@
-import { 
+import { type ActivityItem } from "@/components/admin/RecentActivity";
+import {
   Users, 
   Receipt, 
   Wallet, 
@@ -12,17 +13,22 @@ import {
   Activity,
   TrendingUp,
   Zap,
-  DollarSign
+  DollarSign,
+  Repeat,
+  PiggyBank,
+  BarChart3,
+  Landmark
 } from "lucide-react";
 import { StatsCard } from "@/components/admin/StatsCard";
 import { TransactionVolumeChart } from "@/components/admin/charts/TransactionVolumeChart";
 import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart";
 import { CategoryDistributionChart } from "@/components/admin/charts/CategoryDistributionChart";
 import { QuickStatsGrid } from "@/components/admin/QuickStatsGrid";
+import { RecentActivity } from "@/components/admin/RecentActivity";
 import { useAdminDashboardStats } from "@/hooks/admin/useAdminDashboardStats";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-KE', {
@@ -89,14 +95,22 @@ export default function Dashboard() {
     { icon: Zap, label: "Categories", value: formatNumber(stats?.features.totalCategories || 0), color: "pink" as const },
   ];
 
+  // Map recent activity for the component
+  const recentActivityItems = (stats?.recentActivity || []).map((a) => ({
+    id: a.id,
+    type: a.type as "expense" | "income" | "transfer",
+    amount: a.amount,
+    description: a.description,
+    date: a.date,
+    userId: a.userId,
+  }));
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Dashboard
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">
             Platform overview and key metrics for Go Safe Spend
           </p>
@@ -110,7 +124,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Primary Stats - 4 Column Grid */}
+      {/* Primary Stats - 4 Column Grid with REAL trends */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {isLoading ? (
           <>
@@ -127,7 +141,7 @@ export default function Dashboard() {
               subtitle="Registered users"
               icon={Users}
               variant="primary"
-              trend={{ value: 12, isPositive: true }}
+              trend={stats?.trends.userTrend !== undefined ? { value: Math.abs(stats.trends.userTrend), isPositive: stats.trends.userTrend >= 0 } : undefined}
             />
             <StatsCard
               title="Total Transactions"
@@ -157,7 +171,65 @@ export default function Dashboard() {
       {/* Quick Stats Strip */}
       <QuickStatsGrid stats={quickStats} isLoading={isLoading} />
 
-      {/* Charts Row - 2 Column */}
+      {/* New Metrics Row */}
+      {!isLoading && stats && (
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="glass-card border-l-4 border-l-info">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-info/10">
+                  <Repeat className="h-5 w-5 text-info" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-foreground">{stats.features.activeRecurring}</p>
+                  <p className="text-xs text-muted-foreground">Active Recurring ({formatCurrency(stats.features.recurringMonthlyAmount)}/mo)</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="glass-card border-l-4 border-l-purple">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple/10">
+                  <BarChart3 className="h-5 w-5 text-purple" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-foreground">{stats.features.totalSubscriptions}</p>
+                  <p className="text-xs text-muted-foreground">{stats.features.activeTrials} trials • {stats.features.activeSubscriptions} active</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="glass-card border-l-4 border-l-primary">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                  <PiggyBank className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-foreground">{stats.features.totalBudgets}</p>
+                  <p className="text-xs text-muted-foreground">Active Budgets</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="glass-card border-l-4 border-l-orange">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange/10">
+                  <Landmark className="h-5 w-5 text-orange" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-foreground">{formatCurrency(stats.features.netWorth)}</p>
+                  <p className="text-xs text-muted-foreground">Platform Net Worth</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-2">
         <TransactionVolumeChart 
           data={stats?.charts.monthlyData || []} 
@@ -190,6 +262,7 @@ export default function Dashboard() {
                 subtitle={`${formatNumber(stats?.overview.totalExpenses || 0)} transactions`}
                 icon={ArrowUpRight}
                 variant="pink"
+                trend={stats?.trends.expenseTrend !== undefined ? { value: Math.abs(stats.trends.expenseTrend), isPositive: stats.trends.expenseTrend <= 0 } : undefined}
               />
               <StatsCard
                 title="Total Income"
@@ -197,6 +270,7 @@ export default function Dashboard() {
                 subtitle={`${formatNumber(stats?.overview.totalIncomes || 0)} transactions`}
                 icon={ArrowDownLeft}
                 variant="primary"
+                trend={stats?.trends.incomeTrend !== undefined ? { value: Math.abs(stats.trends.incomeTrend), isPositive: stats.trends.incomeTrend >= 0 } : undefined}
               />
               <StatsCard
                 title="Debt Balance"
@@ -210,14 +284,17 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* User Growth Chart - Full Width */}
+      {/* User Growth Chart */}
       <UserGrowthChart 
         data={stats?.charts.userSignups || []} 
         isLoading={isLoading} 
       />
 
-      {/* Bottom Section - 2 Column */}
+      {/* Bottom Section - Recent Activity + Savings */}
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Recent Activity Feed */}
+        <RecentActivity activities={recentActivityItems} isLoading={isLoading} />
+
         {/* Savings Progress Card */}
         <Card className="glass-card overflow-hidden">
           <CardHeader className="pb-2">
@@ -225,9 +302,7 @@ export default function Dashboard() {
               <Target className="h-5 w-5 text-primary" />
               <CardTitle>Savings Progress</CardTitle>
             </div>
-            <CardDescription>
-              Platform-wide savings goals progress
-            </CardDescription>
+            <CardDescription>Platform-wide savings goals progress</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {isLoading ? (
@@ -262,7 +337,6 @@ export default function Dashboard() {
                   </div>
                 </div>
                 
-                {/* Mini stats */}
                 <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border/50">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-foreground">{stats?.features.totalSavingsGoals || 0}</p>
@@ -278,63 +352,6 @@ export default function Dashboard() {
                   </div>
                 </div>
               </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Platform Summary Card */}
-        <Card className="glass-card overflow-hidden">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-info" />
-              <CardTitle>Platform Summary</CardTitle>
-            </div>
-            <CardDescription>
-              Quick overview of Go Safe Spend
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-3">
-                <div className="h-4 w-full shimmer rounded" />
-                <div className="h-4 w-3/4 shimmer rounded" />
-                <div className="h-4 w-1/2 shimmer rounded" />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="p-4 rounded-xl bg-card/50 border border-border/50">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Your platform is tracking <span className="font-semibold text-foreground">{formatCurrency(stats?.overview.totalExpenseAmount || 0)}</span> in expenses
-                    and <span className="font-semibold text-primary">{formatCurrency(stats?.overview.totalIncomeAmount || 0)}</span> in income
-                    across <span className="font-semibold text-info">{stats?.overview.totalUsers || 0}</span> users.
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
-                    <p className="text-2xl font-bold text-primary">{stats?.features.totalAccounts || 0}</p>
-                    <p className="text-xs text-muted-foreground">Accounts Created</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-warning/5 border border-warning/20">
-                    <p className="text-2xl font-bold text-warning">{stats?.features.totalBills || 0}</p>
-                    <p className="text-xs text-muted-foreground">Recurring Bills</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-purple/5 border border-purple/20">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-purple">
-                    <Zap className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {stats?.features.totalCategories || 0} categories in use
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Across all user accounts
-                    </p>
-                  </div>
-                </div>
-              </div>
             )}
           </CardContent>
         </Card>
