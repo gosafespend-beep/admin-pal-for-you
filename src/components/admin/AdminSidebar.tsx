@@ -3,6 +3,7 @@ import {
   Users, 
   Receipt, 
   ClipboardList,
+  CreditCard,
   Settings,
   LogOut,
   ChevronLeft,
@@ -33,6 +34,7 @@ const mainNavItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard, color: "text-primary" },
   { title: "Users", url: "/admin/users", icon: Users, color: "text-info" },
   { title: "Transactions", url: "/admin/transactions", icon: Receipt, color: "text-purple" },
+  { title: "Subscriptions", url: "/admin/subscriptions", icon: CreditCard, color: "text-orange" },
   { title: "Waitlist", url: "/admin/waitlist", icon: ClipboardList, color: "text-warning" },
 ];
 
