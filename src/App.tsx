@@ -14,6 +14,7 @@ import Users from "./pages/admin/Users";
 import UserDetail from "./pages/admin/UserDetail";
 import Transactions from "./pages/admin/Transactions";
 import Waitlist from "./pages/admin/Waitlist";
+import Subscriptions from "./pages/admin/Subscriptions";
 import Settings from "./pages/admin/Settings";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="users/:id" element={<UserDetail />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="waitlist" element={<Waitlist />} />
+            <Route path="subscriptions" element={<Subscriptions />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           
