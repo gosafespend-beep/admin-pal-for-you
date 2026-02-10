@@ -1,116 +1,134 @@
 
 
-# Admin Panel Refocus: From User Data to Administrative Management
+# Admin Panel Enhancement: Decision-Making and User Management Power Tools
 
-## Problem
-The current admin panel is bloated with user-specific financial details (savings goals, debt balances, net worth, budgets, bills, recurring transactions) that belong in the user-facing app. A real admin panel should focus on platform management: user lifecycle, subscriptions/revenue, engagement analytics, and system operations.
+## Overview
+The current admin panel has solid foundations (users, subscriptions, transactions, waitlist, settings). This plan adds the missing pieces that make it genuinely useful for day-to-day platform management and data-driven decision making.
 
-## What Changes
+## What's Missing and What We'll Add
 
-### 1. Dashboard Overhaul -- Remove Financial Clutter, Add Admin Metrics
+### 1. Analytics Page (New) -- The Decision-Making Hub
 
-**Remove from Dashboard:**
-- "Financial Overview" section (individual expense/income/debt totals)
-- "Savings Progress" card (goals completed, progress bars)
-- Quick stats strip showing Accounts, Bills, Debts, Goals, Transfers, Categories
-- Net Worth, Budgets, Active Recurring cards
-- Category Distribution chart (user-level data)
+A dedicated Analytics page in the sidebar providing actionable insights:
 
-**Replace with:**
-- **Revenue/Subscription metrics row**: Active subscriptions, trial conversion rate, MRR estimate, churn count
-- **Engagement metrics**: Daily/weekly active users (based on last_sign_in_at), avg transactions per user, new signups this week
-- **Platform health summary**: inline indicators for system status pulled from settings health check
-- Keep: Total Users, Transaction Volume chart (useful for platform growth), User Growth chart, Recent Activity, Waitlist count
+- **Retention Funnel**: Show signup-to-active conversion (registered users vs users with at least 1 transaction vs users active in last 30 days)
+- **Churn Risk Table**: Users who were active but haven't logged in for 14+ days, with their last activity date and subscription status -- lets admin decide who to reach out to
+- **Revenue Metrics**: MRR estimate based on active paid subscriptions, trial-to-paid conversion rate trend over time
+- **Subscription Lifecycle Chart**: A stacked bar or area chart showing active/trialing/cancelled/expired over the last 6 months
+- **Top Users by Activity**: Table of most active users (by transaction count) to identify power users and potential advocates
 
-### 2. UserDetail Page -- Simplify to Administrative View
+### 2. Audit Log (New) -- Track Admin Actions
 
-**Remove tabs:**
-- Bills tab
-- Budgets tab  
-- Recurring Transactions tab
-- Net Worth snapshots
-- Goals tab (savings goals)
-- Accounts tab details
-- Debts tab
+Every admin action (suspend user, extend trial, promote/demote, revoke session, change subscription status, approve/reject waitlist) should be logged and visible:
 
-**Keep/Add:**
-- User profile card with status, role, subscription info
-- Admin actions (suspend, delete, promote, demote)
-- **Activity summary**: total transaction count, last active date, account age
-- **Subscription tab**: show subscription status, trial dates, plan details
-- **Sessions tab**: show active sessions with ability to revoke (already have RPCs for this)
-- Recent transactions (last 10, read-only, for context)
+- New `admin_audit_log` database table: `id, admin_user_id, action, target_type, target_id, details (jsonb), created_at`
+- Audit Log page showing a filterable timeline of all admin actions
+- Helps with accountability and debugging ("who cancelled that subscription?")
 
-### 3. Subscriptions Page -- Enhance for Revenue Management
+### 3. Bulk Actions on Users Page
 
-The existing Subscriptions page is good. Enhance with:
-- Add ability to manually change subscription status (extend trial, cancel, reactivate)
-- Show revenue/MRR calculation in stats cards
+- Checkbox selection on the Users table
+- Bulk actions bar: "Suspend Selected", "Send Confirmation Email", "Export Selected"
+- Speeds up management when dealing with multiple users (e.g., suspending spam accounts)
 
-### 4. Dashboard Stats Hook/Edge Function -- Trim Data
+### 4. Dashboard Alerts/Notifications Banner
 
-Update `admin-stats` edge function and `useAdminDashboardStats` to stop returning:
-- Debt balances, savings goals, completed goals, savings progress/target
-- Budget counts, recurring transaction details
-- Asset/liability/net worth totals
-- Debt payment counts, goal contribution counts
+At the top of the Dashboard, show actionable alerts based on data:
 
-Instead return:
-- Subscription metrics (active, trialing, cancelled, conversion rate)
-- Engagement metrics (users active in last 7d, 30d)
-- Simplified transaction volume (just totals for the chart)
+- "X users have expiring trials in the next 3 days" (with link to filter them)
+- "X waitlist entries pending review" (with link)
+- "Y users haven't verified their email in 7+ days"
+- These are computed from existing data in the admin-stats edge function
 
-### 5. Sidebar -- Already Clean (No Changes Needed)
+### 5. User Detail -- Quick Notes/Tags
 
-The sidebar already has the right structure: Dashboard, Users, Transactions, Subscriptions, Waitlist, Settings.
+- Add ability for admins to tag users (e.g., "VIP", "Churning", "Spam") and add internal notes
+- New `admin_user_notes` table: `id, user_id, admin_id, note, tag, created_at`
+- Visible on the UserDetail page and filterable on the Users page
+- Enables team coordination and institutional memory
+
+### 6. Email Actions from Admin Panel
+
+- "Send Email" button on UserDetail page that opens a compose form
+- Uses existing Resend API key (already configured) via an edge function
+- Pre-built templates: Welcome, Trial Expiring Reminder, Account Suspended Notice
+- Useful for re-engaging churning users or communicating with specific users
 
 ---
 
 ## Technical Details
 
-### Files to Modify
+### New Database Tables
 
-**`src/pages/admin/Dashboard.tsx`**
-- Remove Financial Overview section (lines 248-289)
-- Remove Savings Progress card (lines 302-362)
-- Remove Quick Stats strip with user-data metrics (lines 176)
-- Remove New Metrics Row showing recurring/budgets/net worth (lines 179-234)
-- Replace with subscription and engagement metrics cards
-- Keep: primary stats (Users, Transactions, Volume, Waitlist), Transaction Volume chart, User Growth chart, Recent Activity
+**`admin_audit_log`**
+- `id` (uuid, PK)
+- `admin_user_id` (uuid, references auth.users)
+- `action` (text) -- e.g., 'suspend_user', 'extend_trial', 'approve_waitlist'
+- `target_type` (text) -- e.g., 'user', 'subscription', 'waitlist'
+- `target_id` (text)
+- `details` (jsonb) -- additional context
+- `created_at` (timestamptz)
+- RLS: admin-only read access
 
-**`src/hooks/admin/useAdminDashboardStats.ts`**
-- Simplify `DashboardStats` interface to remove `features` bloat
-- Add engagement and subscription fields
+**`admin_user_notes`**
+- `id` (uuid, PK)
+- `user_id` (uuid, references auth.users)
+- `admin_id` (uuid, references auth.users)
+- `note` (text)
+- `tag` (text, nullable) -- 'VIP', 'Churning', 'Spam', etc.
+- `created_at` (timestamptz)
+- RLS: admin-only read/write
 
-**`supabase/functions/admin-stats/index.ts`**
-- Remove queries for: debts, savings_goals, categories, bills, assets, liabilities, networth, debt_payments, goal_contributions, budgets
-- Add: active users in last 7d/30d query (from auth.users last_sign_in_at), subscription conversion rate
-- Keep: user count, transaction aggregation, monthly chart data, recent activity, waitlist count
+### New Files
 
-**`src/pages/admin/UserDetail.tsx`**
-- Remove Bills, Budgets, Recurring, Goals, Debts, Accounts tabs
-- Simplify to: Overview (profile + admin actions), Subscription, Sessions, Recent Transactions
-- Add sessions management using existing `list_user_sessions` and `revoke_user_session` RPCs
+- `src/pages/admin/Analytics.tsx` -- Analytics dashboard page
+- `src/pages/admin/AuditLog.tsx` -- Audit log timeline page
+- `src/hooks/admin/useAdminAnalytics.ts` -- Hook for analytics data
+- `src/hooks/admin/useAdminAuditLog.ts` -- Hook for audit log
+- `src/hooks/admin/useAdminUserNotes.ts` -- Hook for user notes/tags
+- `src/hooks/admin/useAdminEmail.ts` -- Hook for sending emails
+- `src/components/admin/DashboardAlerts.tsx` -- Alerts banner component
+- `src/components/admin/UserNotes.tsx` -- Notes/tags component for UserDetail
+- `src/components/admin/BulkActionsBar.tsx` -- Floating bar for bulk user actions
+- `supabase/functions/admin-analytics/index.ts` -- Analytics data edge function
+- `supabase/functions/admin-audit-log/index.ts` -- Audit log CRUD edge function
+- `supabase/functions/admin-user-notes/index.ts` -- User notes CRUD edge function
+- `supabase/functions/admin-send-email/index.ts` -- Email sending edge function
 
-**`src/hooks/admin/useAdminUserDetail.ts`**
-- Remove fetching of bills, budgets, recurring_transactions, networth_snapshots, savings_goals, debts, accounts detail
-- Add session fetching
+### Modified Files
 
-**`supabase/functions/admin-user-detail/index.ts`**
-- Remove queries for bills, budgets, recurring, goals, debts, accounts
-- Add: user session data, subscription detail, basic activity summary (transaction counts)
+- `src/pages/admin/Dashboard.tsx` -- Add DashboardAlerts banner at top
+- `src/pages/admin/Users.tsx` -- Add checkbox column, bulk actions bar, tag filter
+- `src/pages/admin/UserDetail.tsx` -- Add UserNotes section, Send Email button
+- `src/components/admin/AdminSidebar.tsx` -- Add Analytics and Audit Log nav items
+- `src/App.tsx` -- Add routes for Analytics and AuditLog pages
+- `supabase/config.toml` -- Register new edge functions
+- All existing admin edge functions that perform actions (admin-user-actions, admin-subscriptions, admin-waitlist) -- Add audit log writes after each action
 
-**`supabase/functions/admin-subscriptions/index.ts`**
-- Add POST handler for status changes (extend trial, cancel, reactivate)
+### Migration
 
-**`src/pages/admin/Subscriptions.tsx`**
-- Add action dropdown per subscription row for status management
+One migration to create both new tables with RLS policies:
 
-### No Changes Needed
-- `Users.tsx` -- already properly focused on user management
-- `Transactions.tsx` -- already properly focused on platform transactions
-- `Waitlist.tsx` -- already properly focused
-- `Settings.tsx` -- already properly focused
-- `AdminSidebar.tsx` -- navigation is already correct
-- `AdminLayout.tsx` -- layout is fine
+```text
+-- admin_audit_log table
+CREATE TABLE admin_audit_log (...)
+ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can read audit log" ON admin_audit_log FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Admins can insert audit log" ON admin_audit_log FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'));
+
+-- admin_user_notes table  
+CREATE TABLE admin_user_notes (...)
+ALTER TABLE admin_user_notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can manage notes" ON admin_user_notes FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin'));
+```
+
+### Implementation Order
+
+1. Database migration (audit log + user notes tables)
+2. Analytics page + edge function (highest value for decision-making)
+3. Dashboard alerts banner (uses existing stats data)
+4. Audit log page + integrate logging into existing action edge functions
+5. User notes/tags on UserDetail + tag filter on Users
+6. Bulk actions on Users page
+7. Email sending functionality
 
