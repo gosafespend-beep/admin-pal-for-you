@@ -19,21 +19,13 @@ export interface UserDetail {
   is_admin: boolean;
 }
 
-export interface FinancialSummary {
-  totalBalance: number;
+export interface ActivitySummary {
   totalExpenses: number;
-  totalIncome: number;
-  totalDebt: number;
-  totalSavings: number;
-  accountCount: number;
-  debtCount: number;
-  savingsGoalCount: number;
-  categoryCount: number;
-  billCount: number;
-  activeBillCount: number;
-  budgetCount: number;
-  recurringCount: number;
-  activeRecurringCount: number;
+  totalIncomes: number;
+  totalTransfers: number;
+  totalTransactions: number;
+  lastActiveAt: string | null;
+  accountAge: string;
 }
 
 export interface Transaction {
@@ -43,67 +35,7 @@ export interface Transaction {
   category?: string;
   note?: string;
   source?: string;
-  type: 'expense' | 'income' | 'transfer';
-}
-
-export interface Account {
-  id: string;
-  name: string;
-  type: string;
-  initial_balance: number;
-  color: string;
-  is_active: boolean;
-}
-
-export interface Debt {
-  id: string;
-  name: string;
-  current_balance: number;
-  starting_balance: number;
-  interest_rate: number;
-  minimum_payment: number;
-  is_active: boolean;
-  color: string;
-}
-
-export interface SavingsGoal {
-  id: string;
-  name: string;
-  target_amount: number;
-  current_amount: number;
-  deadline: string | null;
-  is_completed: boolean;
-  color: string;
-  icon: string;
-}
-
-export interface Bill {
-  id: string;
-  name: string;
-  amount: number;
-  due_day: number;
-  frequency: string;
-  category: string | null;
-  is_active: boolean;
-  is_need: boolean;
-}
-
-export interface Budget {
-  id: string;
-  monthly_limit: number;
-  category_id: string;
-  categories?: { name: string; color: string; icon: string } | null;
-}
-
-export interface RecurringTransaction {
-  id: string;
-  description: string;
-  amount: number;
-  type: string;
-  frequency: string;
-  next_due: string;
-  is_active: boolean;
-  category: string | null;
+  type: 'expense' | 'income';
 }
 
 export interface Subscription {
@@ -117,26 +49,20 @@ export interface Subscription {
   cancelled_at: string | null;
 }
 
-export interface NetworthSnapshot {
-  id: string;
-  date: string;
-  total_assets: number;
-  total_liabilities: number;
-  net_worth: number;
+export interface UserSession {
+  session_id: string;
+  created_at: string;
+  updated_at: string;
+  user_agent: string;
+  ip: string;
 }
 
 export interface UserDetailResponse {
   user: UserDetail;
-  financialSummary: FinancialSummary;
-  accounts: Account[];
-  debts: Debt[];
-  savingsGoals: SavingsGoal[];
+  activitySummary: ActivitySummary;
   recentTransactions: Transaction[];
-  bills: Bill[];
-  budgets: Budget[];
-  recurringTransactions: RecurringTransaction[];
   subscription: Subscription | null;
-  networthSnapshots: NetworthSnapshot[];
+  sessions: UserSession[];
 }
 
 export function useAdminUserDetail(userId: string | undefined) {
@@ -183,6 +109,32 @@ export function useAdminUserActions() {
       toast({ title: "Success", description: data.message });
       queryClient.invalidateQueries({ queryKey: ["admin", "user", variables.userId] });
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useRevokeSession() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, sessionId }: { userId: string; sessionId: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase.rpc('revoke_user_session', {
+        p_user_id: userId,
+        p_session_id: sessionId,
+      });
+
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      toast({ title: "Session Revoked", description: "The session has been terminated." });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user", variables.userId] });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });

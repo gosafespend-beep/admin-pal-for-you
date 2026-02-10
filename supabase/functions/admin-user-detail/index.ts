@@ -60,62 +60,35 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Fetch all related data in parallel — including new tabs data
+    // Fetch admin-relevant data only
     const [
       profileResult,
       settingsResult,
       rolesResult,
-      accountsResult,
+      expenseCountResult,
+      incomeCountResult,
+      transferCountResult,
       expensesResult,
       incomesResult,
-      transfersResult,
-      debtsResult,
-      savingsGoalsResult,
-      categoriesResult,
-      billsResult,
-      budgetsResult,
-      recurringResult,
       subscriptionResult,
-      networthResult,
+      sessionsResult,
     ] = await Promise.all([
       adminClient.from('profiles').select('*').eq('user_id', userId).single(),
       adminClient.from('user_settings').select('*').eq('user_id', userId).single(),
       adminClient.from('user_roles').select('*').eq('user_id', userId),
-      adminClient.from('accounts').select('*').eq('user_id', userId),
-      adminClient.from('expenses').select('id, amount, category, date, note, reference_number').eq('user_id', userId).order('date', { ascending: false }).limit(20),
-      adminClient.from('incomes').select('id, amount, source, category, date, note, reference_number').eq('user_id', userId).order('date', { ascending: false }).limit(20),
-      adminClient.from('transfers').select('id, amount, date, note, reference_number').eq('user_id', userId).order('date', { ascending: false }).limit(10),
-      adminClient.from('debts').select('*').eq('user_id', userId),
-      adminClient.from('savings_goals').select('*').eq('user_id', userId),
-      adminClient.from('categories').select('*').eq('user_id', userId),
-      adminClient.from('bills').select('*').eq('user_id', userId).order('name'),
-      adminClient.from('budgets').select('*, categories!budgets_category_id_fkey(name, color, icon)').eq('user_id', userId),
-      adminClient.from('recurring_transactions').select('*').eq('user_id', userId).order('next_due'),
+      adminClient.from('expenses').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+      adminClient.from('incomes').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+      adminClient.from('transfers').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+      adminClient.from('expenses').select('id, amount, category, date, note').eq('user_id', userId).order('date', { ascending: false }).limit(10),
+      adminClient.from('incomes').select('id, amount, source, category, date, note').eq('user_id', userId).order('date', { ascending: false }).limit(10),
       adminClient.from('subscriptions').select('*').eq('user_id', userId).single(),
-      adminClient.from('networth_snapshots').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(12),
+      adminClient.rpc('list_user_sessions', { p_user_id: userId }),
     ])
 
-    const accounts = accountsResult.data || []
-    const expenses = expensesResult.data || []
-    const incomes = incomesResult.data || []
-    const transfers = transfersResult.data || []
-    const debts = debtsResult.data || []
-    const savingsGoals = savingsGoalsResult.data || []
-    const bills = billsResult.data || []
-    const budgets = budgetsResult.data || []
-    const recurring = recurringResult.data || []
-
-    const totalBalance = accounts.reduce((sum: number, acc: Record<string, unknown>) => sum + Number(acc.initial_balance || 0), 0)
-    const totalExpenses = expenses.reduce((sum: number, exp: Record<string, unknown>) => sum + Number(exp.amount || 0), 0)
-    const totalIncome = incomes.reduce((sum: number, inc: Record<string, unknown>) => sum + Number(inc.amount || 0), 0)
-    const totalDebt = debts.reduce((sum: number, d: Record<string, unknown>) => sum + Number(d.current_balance || 0), 0)
-    const totalSavings = savingsGoals.reduce((sum: number, g: Record<string, unknown>) => sum + Number(g.current_amount || 0), 0)
-
     const recentTransactions = [
-      ...expenses.map((e: Record<string, unknown>) => ({ ...e, type: 'expense' })),
-      ...incomes.map((i: Record<string, unknown>) => ({ ...i, type: 'income' })),
-      ...transfers.map((t: Record<string, unknown>) => ({ ...t, type: 'transfer' })),
-    ].sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime()).slice(0, 15)
+      ...(expensesResult.data || []).map((e: Record<string, unknown>) => ({ ...e, type: 'expense' })),
+      ...(incomesResult.data || []).map((i: Record<string, unknown>) => ({ ...i, type: 'income' })),
+    ].sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime()).slice(0, 10)
 
     const userRoles = rolesResult.data?.map((r: Record<string, unknown>) => r.role) || []
 
@@ -136,31 +109,23 @@ Deno.serve(async (req) => {
         roles: userRoles,
         is_admin: userRoles.includes('admin'),
       },
-      financialSummary: {
-        totalBalance,
-        totalExpenses,
-        totalIncome,
-        totalDebt,
-        totalSavings,
-        accountCount: accounts.length,
-        debtCount: debts.filter((d: Record<string, unknown>) => d.is_active).length,
-        savingsGoalCount: savingsGoals.length,
-        categoryCount: categoriesResult.data?.length || 0,
-        billCount: bills.length,
-        activeBillCount: bills.filter((b: Record<string, unknown>) => b.is_active).length,
-        budgetCount: budgets.length,
-        recurringCount: recurring.length,
-        activeRecurringCount: recurring.filter((r: Record<string, unknown>) => r.is_active).length,
+      activitySummary: {
+        totalExpenses: expenseCountResult.count || 0,
+        totalIncomes: incomeCountResult.count || 0,
+        totalTransfers: transferCountResult.count || 0,
+        totalTransactions: (expenseCountResult.count || 0) + (incomeCountResult.count || 0) + (transferCountResult.count || 0),
+        lastActiveAt: user.last_sign_in_at,
+        accountAge: user.created_at,
       },
-      accounts,
-      debts,
-      savingsGoals,
       recentTransactions,
-      bills,
-      budgets,
-      recurringTransactions: recurring,
       subscription: subscriptionResult.data || null,
-      networthSnapshots: networthResult.data || [],
+      sessions: (sessionsResult.data || []).map((s: Record<string, unknown>) => ({
+        session_id: s.session_id,
+        created_at: s.created_at,
+        updated_at: s.updated_at,
+        user_agent: s.user_agent,
+        ip: s.ip,
+      })),
     }
 
     return new Response(

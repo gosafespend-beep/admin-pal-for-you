@@ -14,37 +14,22 @@ export interface DashboardStats {
     platformVolume: number;
     waitlistCount: number;
   };
-  features: {
-    totalAccounts: number;
-    totalBills: number;
-    activeBills: number;
-    totalDebts: number;
-    activeDebts: number;
-    totalDebtBalance: number;
-    totalSavingsGoals: number;
-    completedGoals: number;
-    totalSavingsProgress: number;
-    totalSavingsTarget: number;
-    totalCategories: number;
-    totalBudgets: number;
-    totalRecurring: number;
-    activeRecurring: number;
-    recurringMonthlyAmount: number;
-    totalSubscriptions: number;
-    activeTrials: number;
-    activeSubscriptions: number;
-    totalAssets: number;
-    totalLiabilities: number;
-    netWorth: number;
-    totalDebtPayments: number;
-    totalDebtPaymentAmount: number;
-    totalGoalContributions: number;
-    totalGoalContributionAmount: number;
+  subscriptions: {
+    total: number;
+    active: number;
+    trialing: number;
+    cancelled: number;
+    expired: number;
+    trialConversionRate: number;
+  };
+  engagement: {
+    activeUsers7d: number;
+    activeUsers30d: number;
+    newSignupsThisWeek: number;
+    avgTransactionsPerUser: number;
   };
   trends: {
     userTrend: number;
-    expenseTrend: number;
-    incomeTrend: number;
   };
   charts: {
     monthlyData: Array<{
@@ -58,14 +43,6 @@ export interface DashboardStats {
     userSignups: Array<{
       month: string;
       label: string;
-      count: number;
-    }>;
-    topCategories: Array<{
-      category: string;
-      amount: number;
-    }>;
-    accountTypes: Array<{
-      type: string;
       count: number;
     }>;
   };

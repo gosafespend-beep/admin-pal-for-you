@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  BarChart3,
   Search,
   Download,
   ChevronLeft,
@@ -10,9 +9,12 @@ import {
   Clock,
   XCircle,
   CreditCard,
+  MoreHorizontal,
+  CalendarPlus,
+  Power,
   RefreshCw,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,9 +33,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAdminSubscriptions } from "@/hooks/admin/useAdminSubscriptions";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAdminSubscriptions, useSubscriptionAction } from "@/hooks/admin/useAdminSubscriptions";
 import { AdminErrorState } from "@/components/admin/AdminErrorState";
-import { MobileCardList } from "@/components/admin/MobileCardList";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -56,8 +69,16 @@ export default function Subscriptions() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [confirmAction, setConfirmAction] = useState<{
+    open: boolean;
+    subscriptionId: string;
+    action: string;
+    title: string;
+    description: string;
+  }>({ open: false, subscriptionId: "", action: "", title: "", description: "" });
 
   const { data, isLoading, error, refetch } = useAdminSubscriptions({ page, pageSize, status, search });
+  const { mutate: performAction, isPending: isActioning } = useSubscriptionAction();
 
   const totalPages = Math.ceil((data?.total || 0) / pageSize);
 
@@ -66,16 +87,27 @@ export default function Subscriptions() {
     setPage(1);
   };
 
+  const handleSubscriptionAction = (subId: string, action: string, email: string) => {
+    const configs: Record<string, { title: string; description: string }> = {
+      extend_trial: { title: "Extend Trial", description: `Extend trial by 7 days for ${email}.` },
+      cancel: { title: "Cancel Subscription", description: `Cancel subscription for ${email}.` },
+      reactivate: { title: "Reactivate Subscription", description: `Reactivate subscription for ${email} with a 30-day period.` },
+    };
+    setConfirmAction({ open: true, subscriptionId: subId, action, ...configs[action] });
+  };
+
+  const executeAction = () => {
+    performAction(
+      { subscriptionId: confirmAction.subscriptionId, action: confirmAction.action as 'extend_trial' | 'cancel' | 'reactivate' },
+      { onSuccess: () => setConfirmAction({ open: false, subscriptionId: "", action: "", title: "", description: "" }) }
+    );
+  };
+
   const exportCSV = () => {
     if (!data?.subscriptions?.length) return;
     const headers = ["Email", "Status", "Plan", "Trial Start", "Trial End", "Created"];
     const rows = data.subscriptions.map((s) => [
-      s.userEmail,
-      s.status,
-      s.plan_type || "free",
-      s.trial_start,
-      s.trial_end,
-      s.created_at,
+      s.userEmail, s.status, s.plan_type || "free", s.trial_start, s.trial_end, s.created_at,
     ]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -105,7 +137,7 @@ export default function Subscriptions() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Subscriptions</h1>
-          <p className="text-muted-foreground">Manage platform subscriptions and trials</p>
+          <p className="text-muted-foreground">Manage platform subscriptions and revenue</p>
         </div>
         <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data?.subscriptions?.length}>
           <Download className="h-4 w-4 mr-1" /> Export CSV
@@ -114,12 +146,13 @@ export default function Subscriptions() {
 
       {/* Stats */}
       {data?.stats && (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           {[
             { label: "Total", value: data.stats.total, icon: Users, color: "primary" },
             { label: "Active", value: data.stats.active, icon: Zap, color: "primary" },
             { label: "Trialing", value: data.stats.trialing, icon: Clock, color: "info" },
             { label: "Cancelled", value: data.stats.cancelled, icon: XCircle, color: "destructive" },
+            { label: "Expired", value: data.stats.expired, icon: XCircle, color: "warning" },
           ].map((stat) => (
             <Card key={stat.label} className="glass-card border-l-4" style={{ borderLeftColor: `hsl(var(--${stat.color}))` }}>
               <CardContent className="p-4">
@@ -187,9 +220,37 @@ export default function Subscriptions() {
                     <CardContent className="p-4 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-foreground">{sub.userEmail}</span>
-                        <Badge className={`${statusColors[sub.status] || statusColors.expired} border text-xs`}>
-                          <Icon className="mr-1 h-3 w-3" />{sub.status}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className={`${statusColors[sub.status] || statusColors.expired} border text-xs`}>
+                            <Icon className="mr-1 h-3 w-3" />{sub.status}
+                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {sub.status === "trialing" && (
+                                <DropdownMenuItem onClick={() => handleSubscriptionAction(sub.id, "extend_trial", sub.userEmail)}>
+                                  <CalendarPlus className="mr-2 h-4 w-4" /> Extend Trial
+                                </DropdownMenuItem>
+                              )}
+                              {(sub.status === "active" || sub.status === "trialing") && (
+                                <DropdownMenuItem onClick={() => handleSubscriptionAction(sub.id, "cancel", sub.userEmail)} className="text-destructive">
+                                  <Power className="mr-2 h-4 w-4" /> Cancel
+                                </DropdownMenuItem>
+                              )}
+                              {(sub.status === "cancelled" || sub.status === "expired") && (
+                                <DropdownMenuItem onClick={() => handleSubscriptionAction(sub.id, "reactivate", sub.userEmail)}>
+                                  <RefreshCw className="mr-2 h-4 w-4" /> Reactivate
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Plan: {sub.plan_type || "Free"}</span>
@@ -211,20 +272,21 @@ export default function Subscriptions() {
                 <TableHead>Trial Period</TableHead>
                 <TableHead>Current Period</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i} className="border-border/30">
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 7 }).map((_, j) => (
                       <TableCell key={j}><div className="h-4 shimmer rounded w-24" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : !data?.subscriptions?.length ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     <CreditCard className="h-10 w-10 mx-auto mb-3 opacity-30" />
                     No subscriptions found
                   </TableCell>
@@ -272,6 +334,34 @@ export default function Subscriptions() {
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(sub.created_at), "MMM d, yyyy")}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Manage</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {sub.status === "trialing" && (
+                              <DropdownMenuItem onClick={() => handleSubscriptionAction(sub.id, "extend_trial", sub.userEmail)}>
+                                <CalendarPlus className="mr-2 h-4 w-4" /> Extend Trial (+7d)
+                              </DropdownMenuItem>
+                            )}
+                            {(sub.status === "active" || sub.status === "trialing") && (
+                              <DropdownMenuItem onClick={() => handleSubscriptionAction(sub.id, "cancel", sub.userEmail)} className="text-destructive">
+                                <Power className="mr-2 h-4 w-4" /> Cancel
+                              </DropdownMenuItem>
+                            )}
+                            {(sub.status === "cancelled" || sub.status === "expired") && (
+                              <DropdownMenuItem onClick={() => handleSubscriptionAction(sub.id, "reactivate", sub.userEmail)}>
+                                <RefreshCw className="mr-2 h-4 w-4" /> Reactivate
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -297,6 +387,22 @@ export default function Subscriptions() {
           </div>
         </div>
       )}
+
+      {/* Confirm Action Dialog */}
+      <AlertDialog open={confirmAction.open} onOpenChange={(open) => !open && setConfirmAction({ ...confirmAction, open: false })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmAction.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmAction.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isActioning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeAction} disabled={isActioning}>
+              {isActioning ? "Processing..." : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

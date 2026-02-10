@@ -32,13 +32,65 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
     const url = new URL(req.url)
 
+    // POST: Subscription actions (extend trial, cancel, reactivate)
+    if (req.method === 'POST') {
+      const body = await req.json()
+      const { subscriptionId, action, data: actionData } = body
+
+      if (!subscriptionId || !action) {
+        return new Response(JSON.stringify({ error: 'subscriptionId and action are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      let updateData: Record<string, unknown> = {}
+
+      switch (action) {
+        case 'extend_trial': {
+          const days = actionData?.days || 7
+          const { data: sub } = await adminClient.from('subscriptions').select('trial_end').eq('id', subscriptionId).single()
+          if (!sub) {
+            return new Response(JSON.stringify({ error: 'Subscription not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+          }
+          const currentEnd = new Date(sub.trial_end)
+          const newEnd = new Date(currentEnd.getTime() + days * 24 * 60 * 60 * 1000)
+          updateData = { trial_end: newEnd.toISOString(), status: 'trialing', updated_at: new Date().toISOString() }
+          break
+        }
+        case 'cancel': {
+          updateData = { status: 'cancelled', cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+          break
+        }
+        case 'reactivate': {
+          const now = new Date()
+          const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+          updateData = { 
+            status: 'active', 
+            cancelled_at: null, 
+            current_period_start: now.toISOString(),
+            current_period_end: periodEnd.toISOString(),
+            updated_at: now.toISOString()
+          }
+          break
+        }
+        default:
+          return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      const { error: updateError } = await adminClient.from('subscriptions').update(updateData).eq('id', subscriptionId)
+      if (updateError) {
+        return new Response(JSON.stringify({ error: updateError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      return new Response(JSON.stringify({ success: true, message: `Subscription ${action} successful` }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     if (req.method === 'GET') {
       const page = parseInt(url.searchParams.get('page') || '1')
       const pageSize = parseInt(url.searchParams.get('pageSize') || '20')
       const statusFilter = url.searchParams.get('status') || ''
       const search = url.searchParams.get('search') || ''
 
-      // Fetch all subscriptions
       let query = adminClient.from('subscriptions').select('*').order('created_at', { ascending: false })
 
       if (statusFilter) {
@@ -51,7 +103,6 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: subErr.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      // Get user emails
       const { data: { users } } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
       const userMap = new Map((users || []).map(u => [u.id, u]))
 
@@ -73,7 +124,6 @@ Deno.serve(async (req) => {
       const offset = (page - 1) * pageSize
       const paginated = enriched.slice(offset, offset + pageSize)
 
-      // Stats
       const stats = {
         total: (subscriptions || []).length,
         active: (subscriptions || []).filter(s => s.status === 'active').length,
