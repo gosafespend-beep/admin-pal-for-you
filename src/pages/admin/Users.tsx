@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Search, 
@@ -38,6 +38,9 @@ import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { AdminErrorState } from "@/components/admin/AdminErrorState";
 import { MobileCardList } from "@/components/admin/MobileCardList";
+import { BulkActionsBar } from "@/components/admin/BulkActionsBar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useAdminUserActions } from "@/hooks/admin/useAdminUserDetail";
 
 function UserRowSkeleton() {
   return (
@@ -88,7 +91,8 @@ export default function Users() {
     sortOrder: "desc",
   });
   const [searchInput, setSearchInput] = useState("");
-
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { mutate: performAction, isPending: isActionPending } = useAdminUserActions();
   const { data, isLoading, error, refetch } = useAdminUsers(filters);
 
   const users = data?.users || [];
@@ -292,6 +296,15 @@ export default function Users() {
           <Table className="hidden md:table">
             <TableHeader>
               <TableRow className="border-border/30 hover:bg-transparent">
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={users.length > 0 && selectedIds.size === users.length}
+                    onCheckedChange={(checked) => {
+                      if (checked) setSelectedIds(new Set(users.map(u => u.id)));
+                      else setSelectedIds(new Set());
+                    }}
+                  />
+                </TableHead>
                 <TableHead className="text-muted-foreground">User</TableHead>
                 <TableHead className="text-muted-foreground">Role</TableHead>
                 <TableHead className="text-muted-foreground">Status</TableHead>
@@ -305,7 +318,7 @@ export default function Users() {
                 Array.from({ length: 5 }).map((_, i) => <UserRowSkeleton key={i} />)
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center">
+                  <TableCell colSpan={7} className="h-32 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <UserX className="h-8 w-8 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No users found</p>
@@ -314,7 +327,17 @@ export default function Users() {
                 </TableRow>
               ) : (
                 users.map((user) => (
-                  <UserRow key={user.id} user={user} />
+                  <UserRow 
+                    key={user.id} 
+                    user={user} 
+                    selected={selectedIds.has(user.id)}
+                    onSelect={(checked) => {
+                      const next = new Set(selectedIds);
+                      if (checked) next.add(user.id);
+                      else next.delete(user.id);
+                      setSelectedIds(next);
+                    }}
+                  />
                 ))
               )}
             </TableBody>
@@ -338,11 +361,27 @@ export default function Users() {
           )}
         </CardContent>
       </Card>
+
+      {/* Bulk Actions */}
+      <BulkActionsBar
+        selectedCount={selectedIds.size}
+        onClear={() => setSelectedIds(new Set())}
+        onSuspend={() => {
+          selectedIds.forEach(uid => performAction({ userId: uid, action: "suspend" }));
+          setSelectedIds(new Set());
+        }}
+        onExport={() => {
+          const selected = users.filter(u => selectedIds.has(u.id));
+          exportToCSV(selected, "selected-users");
+          setSelectedIds(new Set());
+        }}
+        isProcessing={isActionPending}
+      />
     </div>
   );
 }
 
-function UserRow({ user }: { user: AdminUser }) {
+function UserRow({ user, selected, onSelect }: { user: AdminUser; selected: boolean; onSelect: (checked: boolean) => void }) {
   const navigate = useNavigate();
   const isSuspended = user.banned_until && new Date(user.banned_until) > new Date();
 
@@ -351,6 +390,9 @@ function UserRow({ user }: { user: AdminUser }) {
       className="border-border/30 hover:bg-card/50 transition-colors cursor-pointer"
       onClick={() => navigate(`/admin/users/${user.id}`)}
     >
+      <TableCell onClick={(e) => e.stopPropagation()}>
+        <Checkbox checked={selected} onCheckedChange={onSelect} />
+      </TableCell>
       <TableCell>
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 border-2 border-border/50">

@@ -16,6 +16,8 @@ import Transactions from "./pages/admin/Transactions";
 import Waitlist from "./pages/admin/Waitlist";
 import Subscriptions from "./pages/admin/Subscriptions";
 import Settings from "./pages/admin/Settings";
+import Analytics from "./pages/admin/Analytics";
+import AuditLog from "./pages/admin/AuditLog";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +39,8 @@ const App = () => (
             <Route path="transactions" element={<Transactions />} />
             <Route path="waitlist" element={<Waitlist />} />
             <Route path="subscriptions" element={<Subscriptions />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="audit-log" element={<AuditLog />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           

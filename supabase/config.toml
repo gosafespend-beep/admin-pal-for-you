@@ -23,3 +23,12 @@ verify_jwt = false
 
 [functions.admin-subscriptions]
 verify_jwt = false
+
+[functions.admin-analytics]
+verify_jwt = false
+
+[functions.admin-audit-log]
+verify_jwt = false
+
+[functions.admin-user-notes]
+verify_jwt = false

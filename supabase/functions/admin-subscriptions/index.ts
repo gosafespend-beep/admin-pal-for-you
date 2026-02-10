@@ -29,6 +29,9 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Access denied' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    const { data: { user: adminUser } } = await userClient.auth.getUser()
+    const adminUserId = adminUser?.id
+
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
     const url = new URL(req.url)
 
@@ -78,6 +81,17 @@ Deno.serve(async (req) => {
       const { error: updateError } = await adminClient.from('subscriptions').update(updateData).eq('id', subscriptionId)
       if (updateError) {
         return new Response(JSON.stringify({ error: updateError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      // Audit log
+      if (adminUserId) {
+        await adminClient.from('admin_audit_log').insert({
+          admin_user_id: adminUserId,
+          action,
+          target_type: 'subscription',
+          target_id: subscriptionId,
+          details: { updateData },
+        })
       }
 
       return new Response(JSON.stringify({ success: true, message: `Subscription ${action} successful` }), {

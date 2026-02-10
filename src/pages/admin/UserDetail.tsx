@@ -22,6 +22,7 @@ import {
   Shield,
 } from "lucide-react";
 import { useAdminUserDetail, useAdminUserActions, useRevokeSession, type UserAction } from "@/hooks/admin/useAdminUserDetail";
+import { UserNotes } from "@/components/admin/UserNotes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -475,6 +476,9 @@ export default function UserDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* User Notes */}
+      {id && <UserNotes userId={id} />}
 
       {/* Confirmation Dialog */}
       <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog({ ...confirmDialog, open: false })}>
