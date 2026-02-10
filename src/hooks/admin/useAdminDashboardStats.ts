@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface DashboardStats {
@@ -58,8 +59,28 @@ export interface DashboardStats {
 }
 
 export function useAdminDashboardStats() {
+  const queryClient = useQueryClient();
+  const queryKey = ["admin", "dashboard-stats"];
+
+  // Subscribe to realtime changes on key tables to auto-refresh
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-dashboard-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "*", schema: "public", table: "expenses" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "*", schema: "public", table: "incomes" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "*", schema: "public", table: "transfers" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "*", schema: "public", table: "waitlist" }, () => queryClient.invalidateQueries({ queryKey }))
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   return useQuery({
-    queryKey: ["admin", "dashboard-stats"],
+    queryKey,
     queryFn: async (): Promise<DashboardStats> => {
       const { data: { session } } = await supabase.auth.getSession();
       
