@@ -23,13 +23,11 @@ Deno.serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-    // Verify admin
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     })
 
     const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
-    
     if (adminError || !isAdmin) {
       return new Response(
         JSON.stringify({ error: 'Access denied. Admin privileges required.' }),
@@ -39,25 +37,24 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Use SQL aggregation functions instead of loading all rows
     const [
       overviewResult,
       monthlyResult,
-      categoriesResult,
-      accountTypesResult,
       recentActivityResult,
       usersResult,
+      subscriptionsResult,
     ] = await Promise.all([
       adminClient.rpc('admin_overview_stats'),
       adminClient.rpc('admin_monthly_transaction_stats'),
-      adminClient.rpc('admin_top_categories', { p_limit: 10 }),
-      adminClient.rpc('admin_account_types'),
       adminClient.rpc('admin_recent_activity', { p_limit: 15 }),
-      adminClient.auth.admin.listUsers(),
+      adminClient.auth.admin.listUsers({ perPage: 1000 }),
+      adminClient.from('subscriptions').select('status, trial_start, trial_end, current_period_start, current_period_end'),
     ])
 
     const overview = overviewResult.data || {}
     const users = usersResult.data?.users || []
+    const subscriptions = subscriptionsResult.data || []
+
     const monthlyData = (monthlyResult.data || []).map((m: Record<string, unknown>) => ({
       month: m.month_key,
       label: m.month_label,
@@ -67,7 +64,7 @@ Deno.serve(async (req) => {
       incomeCount: Number(m.income_count),
     }))
 
-    // User signups over time (last 12 months) — still from auth users
+    // User signups over time (last 12 months)
     const now = new Date()
     const userSignups = []
     for (let i = 11; i >= 0; i--) {
@@ -77,7 +74,6 @@ Deno.serve(async (req) => {
         const createdAt = new Date(u.created_at)
         return createdAt >= date && createdAt < nextMonth
       }).length
-
       userSignups.push({
         month: date.toISOString().slice(0, 7),
         label: date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
@@ -85,15 +81,37 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Compute trends
-    const expenseTrend = overview.prevMonthExpenses > 0
-      ? ((overview.currentMonthExpenses - overview.prevMonthExpenses) / overview.prevMonthExpenses) * 100
-      : 0
-    const incomeTrend = overview.prevMonthIncomes > 0
-      ? ((overview.currentMonthIncomes - overview.prevMonthIncomes) / overview.prevMonthIncomes) * 100
-      : 0
+    // Engagement: active users in last 7d and 30d
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const activeUsers7d = users.filter((u: { last_sign_in_at: string | null }) => 
+      u.last_sign_in_at && new Date(u.last_sign_in_at) >= sevenDaysAgo
+    ).length
+    const activeUsers30d = users.filter((u: { last_sign_in_at: string | null }) => 
+      u.last_sign_in_at && new Date(u.last_sign_in_at) >= thirtyDaysAgo
+    ).length
 
-    // Users trend: current month signups vs prev month
+    // New signups this week
+    const newSignupsThisWeek = users.filter((u: { created_at: string }) => 
+      new Date(u.created_at) >= sevenDaysAgo
+    ).length
+
+    // Subscription metrics
+    const activeSubs = subscriptions.filter((s: { status: string }) => s.status === 'active').length
+    const trialingSubs = subscriptions.filter((s: { status: string }) => s.status === 'trialing').length
+    const cancelledSubs = subscriptions.filter((s: { status: string }) => s.status === 'cancelled').length
+    const expiredSubs = subscriptions.filter((s: { status: string }) => s.status === 'expired').length
+    const totalSubs = subscriptions.length
+
+    // Trial conversion rate: active / (active + expired + cancelled) 
+    const convertedOrChurned = activeSubs + expiredSubs + cancelledSubs
+    const trialConversionRate = convertedOrChurned > 0 ? (activeSubs / convertedOrChurned) * 100 : 0
+
+    // Avg transactions per user
+    const totalTransactions = Number(overview.totalExpenses || 0) + Number(overview.totalIncomes || 0) + Number(overview.totalTransfers || 0)
+    const avgTransactionsPerUser = users.length > 0 ? totalTransactions / users.length : 0
+
+    // User trend
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     const currentMonthUsers = users.filter((u: { created_at: string }) => new Date(u.created_at) >= currentMonthStart).length
@@ -107,59 +125,35 @@ Deno.serve(async (req) => {
       overview: {
         totalUsers: users.length,
         activeProfiles: Number(overview.totalProfiles || 0),
-        totalTransactions: Number(overview.totalExpenses) + Number(overview.totalIncomes) + Number(overview.totalTransfers),
-        totalExpenses: Number(overview.totalExpenses),
-        totalIncomes: Number(overview.totalIncomes),
-        totalTransfers: Number(overview.totalTransfers),
-        totalExpenseAmount: Number(overview.totalExpenseAmount),
-        totalIncomeAmount: Number(overview.totalIncomeAmount),
-        platformVolume: Number(overview.totalExpenseAmount) + Number(overview.totalIncomeAmount),
-        waitlistCount: Number(overview.waitlistCount),
+        totalTransactions,
+        totalExpenses: Number(overview.totalExpenses || 0),
+        totalIncomes: Number(overview.totalIncomes || 0),
+        totalTransfers: Number(overview.totalTransfers || 0),
+        totalExpenseAmount: Number(overview.totalExpenseAmount || 0),
+        totalIncomeAmount: Number(overview.totalIncomeAmount || 0),
+        platformVolume: Number(overview.totalExpenseAmount || 0) + Number(overview.totalIncomeAmount || 0),
+        waitlistCount: Number(overview.waitlistCount || 0),
       },
-      features: {
-        totalAccounts: Number(overview.totalAccounts),
-        totalBills: Number(overview.totalBills),
-        activeBills: Number(overview.activeBills),
-        totalDebts: Number(overview.totalDebts),
-        activeDebts: Number(overview.activeDebts),
-        totalDebtBalance: Number(overview.totalDebtBalance),
-        totalSavingsGoals: Number(overview.totalSavingsGoals),
-        completedGoals: Number(overview.completedGoals),
-        totalSavingsProgress: Number(overview.totalSavingsProgress),
-        totalSavingsTarget: Number(overview.totalSavingsTarget),
-        totalCategories: Number(overview.totalCategories),
-        // New metrics
-        totalBudgets: Number(overview.totalBudgets),
-        totalRecurring: Number(overview.totalRecurring),
-        activeRecurring: Number(overview.activeRecurring),
-        recurringMonthlyAmount: Number(overview.recurringMonthlyAmount),
-        totalSubscriptions: Number(overview.totalSubscriptions),
-        activeTrials: Number(overview.activeTrials),
-        activeSubscriptions: Number(overview.activeSubscriptions),
-        totalAssets: Number(overview.totalAssets),
-        totalLiabilities: Number(overview.totalLiabilities),
-        netWorth: Number(overview.netWorth),
-        totalDebtPayments: Number(overview.totalDebtPayments),
-        totalDebtPaymentAmount: Number(overview.totalDebtPaymentAmount),
-        totalGoalContributions: Number(overview.totalGoalContributions),
-        totalGoalContributionAmount: Number(overview.totalGoalContributionAmount),
+      subscriptions: {
+        total: totalSubs,
+        active: activeSubs,
+        trialing: trialingSubs,
+        cancelled: cancelledSubs,
+        expired: expiredSubs,
+        trialConversionRate: Math.round(trialConversionRate * 10) / 10,
+      },
+      engagement: {
+        activeUsers7d,
+        activeUsers30d,
+        newSignupsThisWeek,
+        avgTransactionsPerUser: Math.round(avgTransactionsPerUser * 10) / 10,
       },
       trends: {
         userTrend: Math.round(userTrend * 10) / 10,
-        expenseTrend: Math.round(expenseTrend * 10) / 10,
-        incomeTrend: Math.round(incomeTrend * 10) / 10,
       },
       charts: {
         monthlyData,
         userSignups,
-        topCategories: (categoriesResult.data || []).map((c: Record<string, unknown>) => ({
-          category: c.category,
-          amount: Number(c.total_amount),
-        })),
-        accountTypes: (accountTypesResult.data || []).map((a: Record<string, unknown>) => ({
-          type: a.account_type,
-          count: Number(a.count),
-        })),
       },
       recentActivity: (recentActivityResult.data || []).map((a: Record<string, unknown>) => ({
         id: a.id,

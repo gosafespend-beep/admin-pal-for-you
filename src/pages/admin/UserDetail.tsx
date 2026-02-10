@@ -7,31 +7,25 @@ import {
   Mail,
   Calendar,
   Clock,
-  Shield,
   Crown,
   Ban,
   Trash2,
   UserCheck,
   UserX,
   Wallet,
-  TrendingUp,
-  TrendingDown,
-  PiggyBank,
-  CreditCard,
-  Target,
   MoreVertical,
   RefreshCw,
-  FileText,
-  Repeat,
   BarChart3,
-  Landmark,
+  Monitor,
+  LogOut,
+  Receipt,
+  Shield,
 } from "lucide-react";
-import { useAdminUserDetail, useAdminUserActions, type UserAction } from "@/hooks/admin/useAdminUserDetail";
+import { useAdminUserDetail, useAdminUserActions, useRevokeSession, type UserAction } from "@/hooks/admin/useAdminUserDetail";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -94,6 +88,7 @@ export default function UserDetail() {
   const navigate = useNavigate();
   const { data, isLoading, error, refetch } = useAdminUserDetail(id);
   const { mutate: performAction, isPending: isActionPending } = useAdminUserActions();
+  const { mutate: revokeSession, isPending: isRevoking } = useRevokeSession();
   
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
@@ -124,7 +119,7 @@ export default function UserDetail() {
     );
   }
 
-  const { user, financialSummary, accounts, debts, savingsGoals, recentTransactions, bills, budgets, recurringTransactions, subscription, networthSnapshots } = data;
+  const { user, activitySummary, recentTransactions, subscription, sessions } = data;
   const isSuspended = user.banned_until && new Date(user.banned_until) > new Date();
 
   const handleAction = (action: UserAction) => {
@@ -212,7 +207,7 @@ export default function UserDetail() {
         </div>
       </div>
 
-      {/* User Profile & Financial Overview */}
+      {/* User Profile & Activity Summary */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Profile Card */}
         <Card className="glass-card lg:col-span-1">
@@ -271,70 +266,58 @@ export default function UserDetail() {
           </CardContent>
         </Card>
 
-        {/* Financial Stats */}
+        {/* Activity Summary Stats */}
         <div className="lg:col-span-2 grid gap-4 md:grid-cols-2">
           <Card className="glass-card border-l-4 border-l-primary">
             <CardContent className="p-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary mb-3">
-                <Wallet className="h-6 w-6 text-primary-foreground" />
+                <Receipt className="h-6 w-6 text-primary-foreground" />
               </div>
-              <p className="text-3xl font-bold text-foreground">{formatCurrency(financialSummary.totalBalance, user.currency)}</p>
-              <p className="text-sm text-muted-foreground">{financialSummary.accountCount} accounts</p>
+              <p className="text-3xl font-bold text-foreground">{activitySummary.totalTransactions}</p>
+              <p className="text-sm text-muted-foreground">Total Transactions</p>
             </CardContent>
           </Card>
           <Card className="glass-card border-l-4 border-l-info">
             <CardContent className="p-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-info mb-3">
-                <TrendingUp className="h-6 w-6 text-info-foreground" />
+                <Wallet className="h-6 w-6 text-info-foreground" />
               </div>
-              <p className="text-3xl font-bold text-foreground">{formatCurrency(financialSummary.totalIncome, user.currency)}</p>
-              <p className="text-sm text-muted-foreground">Total Income</p>
-            </CardContent>
-          </Card>
-          <Card className="glass-card border-l-4 border-l-pink">
-            <CardContent className="p-6">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-pink mb-3">
-                <TrendingDown className="h-6 w-6 text-pink-foreground" />
-              </div>
-              <p className="text-3xl font-bold text-foreground">{formatCurrency(financialSummary.totalExpenses, user.currency)}</p>
-              <p className="text-sm text-muted-foreground">Total Expenses</p>
+              <p className="text-3xl font-bold text-foreground">{activitySummary.totalExpenses}</p>
+              <p className="text-sm text-muted-foreground">Expenses</p>
             </CardContent>
           </Card>
           <Card className="glass-card border-l-4 border-l-purple">
             <CardContent className="p-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-purple mb-3">
-                <CreditCard className="h-6 w-6 text-purple-foreground" />
+                <Shield className="h-6 w-6 text-purple-foreground" />
               </div>
-              <p className="text-3xl font-bold text-foreground">{formatCurrency(financialSummary.totalDebt, user.currency)}</p>
-              <p className="text-sm text-muted-foreground">{financialSummary.debtCount} active debts</p>
+              <p className="text-3xl font-bold text-foreground">{activitySummary.totalIncomes}</p>
+              <p className="text-sm text-muted-foreground">Incomes</p>
+            </CardContent>
+          </Card>
+          <Card className="glass-card border-l-4 border-l-warning">
+            <CardContent className="p-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-warning mb-3">
+                <Monitor className="h-6 w-6 text-warning-foreground" />
+              </div>
+              <p className="text-3xl font-bold text-foreground">{sessions.length}</p>
+              <p className="text-sm text-muted-foreground">Active Sessions</p>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Detailed Data Tabs */}
+      {/* Tabs: Transactions, Subscription, Sessions */}
       <Tabs defaultValue="transactions" className="space-y-4">
-        <TabsList className="bg-muted/50 p-1 flex-wrap h-auto">
+        <TabsList className="bg-muted/50 p-1">
           <TabsTrigger value="transactions" className="data-[state=active]:bg-background">
-            Transactions
+            Transactions ({activitySummary.totalTransactions})
           </TabsTrigger>
-          <TabsTrigger value="accounts" className="data-[state=active]:bg-background">
-            Accounts ({accounts.length})
+          <TabsTrigger value="subscription" className="data-[state=active]:bg-background">
+            Subscription
           </TabsTrigger>
-          <TabsTrigger value="goals" className="data-[state=active]:bg-background">
-            Goals ({savingsGoals.length})
-          </TabsTrigger>
-          <TabsTrigger value="debts" className="data-[state=active]:bg-background">
-            Debts ({debts.length})
-          </TabsTrigger>
-          <TabsTrigger value="bills" className="data-[state=active]:bg-background">
-            Bills ({bills?.length || 0})
-          </TabsTrigger>
-          <TabsTrigger value="budgets" className="data-[state=active]:bg-background">
-            Budgets ({budgets?.length || 0})
-          </TabsTrigger>
-          <TabsTrigger value="recurring" className="data-[state=active]:bg-background">
-            Recurring ({recurringTransactions?.length || 0})
+          <TabsTrigger value="sessions" className="data-[state=active]:bg-background">
+            Sessions ({sessions.length})
           </TabsTrigger>
         </TabsList>
 
@@ -343,7 +326,7 @@ export default function UserDetail() {
           <Card className="glass-card overflow-hidden">
             <CardHeader>
               <CardTitle>Recent Transactions</CardTitle>
-              <CardDescription>Last 15 transactions across all types</CardDescription>
+              <CardDescription>Last 10 transactions</CardDescription>
             </CardHeader>
             <CardContent>
               {recentTransactions.length === 0 ? (
@@ -367,12 +350,11 @@ export default function UserDetail() {
                             "capitalize",
                             tx.type === "income" && "bg-primary/10 text-primary border-primary/20",
                             tx.type === "expense" && "bg-pink/10 text-pink border-pink/20",
-                            tx.type === "transfer" && "bg-info/10 text-info border-info/20"
                           )}>{tx.type}</Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{tx.category || tx.source || "—"}</TableCell>
                         <TableCell className={cn("text-right font-medium", tx.type === "income" && "text-primary", tx.type === "expense" && "text-pink")}>
-                          {tx.type === "income" ? "+" : tx.type === "expense" ? "-" : ""}{formatCurrency(tx.amount, user.currency)}
+                          {tx.type === "income" ? "+" : "-"}{formatCurrency(tx.amount, user.currency)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -383,227 +365,106 @@ export default function UserDetail() {
           </Card>
         </TabsContent>
 
-        {/* Accounts Tab */}
-        <TabsContent value="accounts">
+        {/* Subscription Tab */}
+        <TabsContent value="subscription">
           <Card className="glass-card">
             <CardHeader>
-              <CardTitle>Accounts</CardTitle>
+              <CardTitle>Subscription Details</CardTitle>
             </CardHeader>
             <CardContent>
-              {accounts.length === 0 ? (
-                <EmptyState icon={Wallet} text="No accounts" />
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {accounts.map((account) => (
-                    <Card key={account.id} className="bg-card/50 border-border/30">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${account.color}20` }}>
-                            <Wallet className="h-5 w-5" style={{ color: account.color }} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{account.name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{account.type}</p>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex items-center justify-between">
-                          <p className="text-lg font-bold">{formatCurrency(account.initial_balance, user.currency)}</p>
-                          <Badge variant={account.is_active ? "default" : "secondary"} className="text-xs">{account.is_active ? "Active" : "Inactive"}</Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Goals Tab */}
-        <TabsContent value="goals">
-          <Card className="glass-card">
-            <CardHeader><CardTitle>Savings Goals</CardTitle></CardHeader>
-            <CardContent>
-              {savingsGoals.length === 0 ? (
-                <EmptyState icon={Target} text="No savings goals" />
+              {!subscription ? (
+                <EmptyState icon={BarChart3} text="No subscription found" />
               ) : (
                 <div className="space-y-4">
-                  {savingsGoals.map((goal) => {
-                    const progress = (goal.current_amount / goal.target_amount) * 100;
-                    return (
-                      <div key={goal.id} className="p-4 rounded-lg bg-card/50 border border-border/30">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${goal.color}20` }}>
-                              <PiggyBank className="h-5 w-5" style={{ color: goal.color }} />
-                            </div>
-                            <div>
-                              <p className="font-medium">{goal.name}</p>
-                              {goal.deadline && <p className="text-xs text-muted-foreground">Due: {format(new Date(goal.deadline), "MMM d, yyyy")}</p>}
-                            </div>
-                          </div>
-                          <Badge variant={goal.is_completed ? "default" : "secondary"}>{goal.is_completed ? "Done" : `${progress.toFixed(0)}%`}</Badge>
-                        </div>
-                        <Progress value={Math.min(progress, 100)} className="h-2" />
-                        <div className="mt-2 flex justify-between text-sm">
-                          <span className="text-muted-foreground">{formatCurrency(goal.current_amount, user.currency)}</span>
-                          <span className="font-medium">{formatCurrency(goal.target_amount, user.currency)}</span>
-                        </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="p-4 rounded-lg bg-card/50 border border-border/30">
+                      <p className="text-xs text-muted-foreground mb-1">Status</p>
+                      <Badge className={cn(
+                        "capitalize",
+                        subscription.status === "active" && "bg-primary/10 text-primary border-primary/20",
+                        subscription.status === "trialing" && "bg-info/10 text-info border-info/20",
+                        subscription.status === "cancelled" && "bg-destructive/10 text-destructive border-destructive/20",
+                        subscription.status === "expired" && "bg-muted text-muted-foreground border-border",
+                      )}>{subscription.status}</Badge>
+                    </div>
+                    <div className="p-4 rounded-lg bg-card/50 border border-border/30">
+                      <p className="text-xs text-muted-foreground mb-1">Plan</p>
+                      <p className="font-medium text-foreground">{subscription.plan_type || "Free"}</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-card/50 border border-border/30">
+                      <p className="text-xs text-muted-foreground mb-1">Trial Period</p>
+                      <p className="text-sm text-foreground">
+                        {format(new Date(subscription.trial_start), "MMM d, yyyy")} → {format(new Date(subscription.trial_end), "MMM d, yyyy")}
+                      </p>
+                    </div>
+                    {subscription.current_period_start && (
+                      <div className="p-4 rounded-lg bg-card/50 border border-border/30">
+                        <p className="text-xs text-muted-foreground mb-1">Current Period</p>
+                        <p className="text-sm text-foreground">
+                          {format(new Date(subscription.current_period_start), "MMM d, yyyy")} → {subscription.current_period_end ? format(new Date(subscription.current_period_end), "MMM d, yyyy") : "—"}
+                        </p>
                       </div>
-                    );
-                  })}
+                    )}
+                    {subscription.cancelled_at && (
+                      <div className="p-4 rounded-lg bg-card/50 border border-border/30">
+                        <p className="text-xs text-muted-foreground mb-1">Cancelled At</p>
+                        <p className="text-sm text-destructive">{format(new Date(subscription.cancelled_at), "MMM d, yyyy HH:mm")}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Debts Tab */}
-        <TabsContent value="debts">
-          <Card className="glass-card">
-            <CardHeader><CardTitle>Debts</CardTitle></CardHeader>
-            <CardContent>
-              {debts.length === 0 ? (
-                <EmptyState icon={CreditCard} text="No debts" />
-              ) : (
-                <div className="space-y-4">
-                  {debts.map((debt) => {
-                    const paidOff = debt.starting_balance - debt.current_balance;
-                    const progress = (paidOff / debt.starting_balance) * 100;
-                    return (
-                      <div key={debt.id} className="p-4 rounded-lg bg-card/50 border border-border/30">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${debt.color}20` }}>
-                              <CreditCard className="h-5 w-5" style={{ color: debt.color }} />
-                            </div>
-                            <div>
-                              <p className="font-medium">{debt.name}</p>
-                              <p className="text-xs text-muted-foreground">{debt.interest_rate}% APR • Min: {formatCurrency(debt.minimum_payment, user.currency)}</p>
-                            </div>
-                          </div>
-                          <Badge variant={debt.is_active ? "destructive" : "secondary"}>{debt.is_active ? "Active" : "Paid Off"}</Badge>
-                        </div>
-                        <Progress value={Math.min(progress, 100)} className="h-2" />
-                        <div className="mt-2 flex justify-between text-sm">
-                          <span className="text-muted-foreground">Remaining: {formatCurrency(debt.current_balance, user.currency)}</span>
-                          <span className="font-medium text-primary">{progress.toFixed(0)}% paid</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Bills Tab */}
-        <TabsContent value="bills">
-          <Card className="glass-card">
+        {/* Sessions Tab */}
+        <TabsContent value="sessions">
+          <Card className="glass-card overflow-hidden">
             <CardHeader>
-              <CardTitle>Bills</CardTitle>
-              <CardDescription>{financialSummary.activeBillCount} active of {financialSummary.billCount} total</CardDescription>
+              <CardTitle>Active Sessions</CardTitle>
+              <CardDescription>Current login sessions for this user</CardDescription>
             </CardHeader>
             <CardContent>
-              {!bills || bills.length === 0 ? (
-                <EmptyState icon={FileText} text="No bills" />
+              {sessions.length === 0 ? (
+                <EmptyState icon={Monitor} text="No active sessions" />
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border/30">
-                      <TableHead>Name</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Due Day</TableHead>
-                      <TableHead>Frequency</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Device</TableHead>
+                      <TableHead>IP Address</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Last Active</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {bills.map((bill) => (
-                      <TableRow key={bill.id} className="border-border/30">
-                        <TableCell className="font-medium">{bill.name}</TableCell>
-                        <TableCell>{formatCurrency(bill.amount, user.currency)}</TableCell>
-                        <TableCell>{bill.due_day}</TableCell>
-                        <TableCell className="capitalize">{bill.frequency}</TableCell>
+                    {sessions.map((session) => (
+                      <TableRow key={session.session_id} className="border-border/30">
                         <TableCell>
-                          <Badge variant={bill.is_active ? "default" : "secondary"}>{bill.is_active ? "Active" : "Inactive"}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Budgets Tab */}
-        <TabsContent value="budgets">
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle>Budgets</CardTitle>
-              <CardDescription>{budgets?.length || 0} category budgets</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!budgets || budgets.length === 0 ? (
-                <EmptyState icon={BarChart3} text="No budgets" />
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {budgets.map((budget) => (
-                    <Card key={budget.id} className="bg-card/50 border-border/30">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${budget.categories?.color || '#6B7280'}20` }}>
-                            <BarChart3 className="h-4 w-4" style={{ color: budget.categories?.color || '#6B7280' }} />
+                          <div className="flex items-center gap-2">
+                            <Monitor className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground truncate max-w-[200px]">{session.user_agent || "Unknown"}</span>
                           </div>
-                          <p className="font-medium">{budget.categories?.name || 'Unknown'}</p>
-                        </div>
-                        <p className="text-lg font-bold">{formatCurrency(budget.monthly_limit, user.currency)}</p>
-                        <p className="text-xs text-muted-foreground">Monthly limit</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Recurring Transactions Tab */}
-        <TabsContent value="recurring">
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle>Recurring Transactions</CardTitle>
-              <CardDescription>{financialSummary.activeRecurringCount} active of {financialSummary.recurringCount} total</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!recurringTransactions || recurringTransactions.length === 0 ? (
-                <EmptyState icon={Repeat} text="No recurring transactions" />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-border/30">
-                      <TableHead>Description</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Frequency</TableHead>
-                      <TableHead>Next Due</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recurringTransactions.map((rt) => (
-                      <TableRow key={rt.id} className="border-border/30">
-                        <TableCell className="font-medium">{rt.description}</TableCell>
-                        <TableCell className={cn(rt.type === "income" ? "text-primary" : "text-pink")}>
-                          {formatCurrency(rt.amount, user.currency)}
                         </TableCell>
-                        <TableCell><Badge variant="secondary" className="capitalize">{rt.type}</Badge></TableCell>
-                        <TableCell className="capitalize">{rt.frequency}</TableCell>
-                        <TableCell className="text-muted-foreground">{format(new Date(rt.next_due), "MMM d, yyyy")}</TableCell>
-                        <TableCell>
-                          <Badge variant={rt.is_active ? "default" : "secondary"}>{rt.is_active ? "Active" : "Paused"}</Badge>
+                        <TableCell className="text-sm text-muted-foreground">{String(session.ip) || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {format(new Date(session.created_at), "MMM d, yyyy HH:mm")}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDistanceToNow(new Date(session.updated_at), { addSuffix: true })}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            disabled={isRevoking}
+                            onClick={() => id && revokeSession({ userId: id, sessionId: session.session_id })}
+                          >
+                            <LogOut className="h-4 w-4 mr-1" /> Revoke
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -614,43 +475,6 @@ export default function UserDetail() {
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Net Worth Section */}
-      {networthSnapshots && networthSnapshots.length > 0 && (
-        <Card className="glass-card">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Landmark className="h-5 w-5 text-primary" />
-              <CardTitle>Net Worth History</CardTitle>
-            </div>
-            <CardDescription>Last {networthSnapshots.length} snapshots</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/30">
-                  <TableHead>Date</TableHead>
-                  <TableHead>Assets</TableHead>
-                  <TableHead>Liabilities</TableHead>
-                  <TableHead className="text-right">Net Worth</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {networthSnapshots.map((snap) => (
-                  <TableRow key={snap.id} className="border-border/30">
-                    <TableCell>{format(new Date(snap.date), "MMM d, yyyy")}</TableCell>
-                    <TableCell className="text-primary">{formatCurrency(snap.total_assets, user.currency)}</TableCell>
-                    <TableCell className="text-pink">{formatCurrency(snap.total_liabilities, user.currency)}</TableCell>
-                    <TableCell className={cn("text-right font-bold", snap.net_worth >= 0 ? "text-primary" : "text-pink")}>
-                      {formatCurrency(snap.net_worth, user.currency)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Confirmation Dialog */}
       <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog({ ...confirmDialog, open: false })}>

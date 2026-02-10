@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface Subscription {
   id: string;
@@ -41,8 +42,8 @@ export function useAdminSubscriptions(filters: Filters) {
     queryKey: ["admin", "subscriptions", filters],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      
+      if (!session?.access_token) throw new Error("Not authenticated");
+
       const params = new URLSearchParams({
         page: filters.page.toString(),
         pageSize: filters.pageSize.toString(),
@@ -51,12 +52,12 @@ export function useAdminSubscriptions(filters: Filters) {
       if (filters.search) params.set("search", filters.search);
 
       const res = await fetch(
-        `https://qeogqvjqvafbzufanwki.supabase.co/functions/v1/admin-subscriptions?${params}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-subscriptions?${params}`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFlb2dxdmpxdmFmYnp1ZmFud2tpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MTAwNDksImV4cCI6MjA4NTE4NjA0OX0.H84dCTVcdwBcmliqWDhfRK9cHMfAWSae1EfNj-oAyF8",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
         }
       );
@@ -67,6 +68,46 @@ export function useAdminSubscriptions(filters: Filters) {
       }
 
       return res.json();
+    },
+  });
+}
+
+type SubscriptionAction = 'extend_trial' | 'cancel' | 'reactivate';
+
+export function useSubscriptionAction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ subscriptionId, action, data }: { subscriptionId: string; action: SubscriptionAction; data?: Record<string, unknown> }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-subscriptions`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ subscriptionId, action, data }),
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || "Action failed");
+      }
+
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Success", description: data.message });
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscriptions"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 }
