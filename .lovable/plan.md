@@ -1,41 +1,116 @@
 
 
-# Admin Panel Comprehensive Audit and Overhaul
+# Admin Panel Refocus: From User Data to Administrative Management
 
-## ✅ Phase 1: Fix Critical Data Issues (COMPLETED)
+## Problem
+The current admin panel is bloated with user-specific financial details (savings goals, debt balances, net worth, budgets, bills, recurring transactions) that belong in the user-facing app. A real admin panel should focus on platform management: user lifecycle, subscriptions/revenue, engagement analytics, and system operations.
 
-- ✅ **admin-stats** rewritten to use SQL aggregation (COUNT/SUM via `admin_overview_stats()`, `admin_monthly_transaction_stats()`, `admin_top_categories()`, `admin_recent_activity()`, `admin_account_types()` RPC functions) — no more loading all rows into memory
-- ✅ **admin-transactions** edge function created with pagination, filtering (type, date range, search, user), and service role access
-- ✅ **admin-waitlist** edge function created with GET (paginated + search + status filter), PATCH (approve/reject), DELETE
-- ✅ **Transactions.tsx** rewritten — uses edge function, pagination, date range filters, CSV export, real platform-wide data
-- ✅ **Waitlist.tsx** rewritten — shows real entries, approve/reject/delete actions, status filtering, CSV export
-- ✅ **Dashboard.tsx** updated — real trend calculations (user/expense/income month-over-month), recent activity feed wired up, new metrics (subscriptions, recurring, budgets, net worth)
-- ✅ **useAdminDashboardStats** updated with trends and new metrics types
-- ✅ Missing metrics added: budgets, recurring transactions, subscriptions, assets, liabilities, net worth, debt payments, goal contributions
+## What Changes
 
-## Phase 2: Enhance Dashboard (Partially Done)
+### 1. Dashboard Overhaul -- Remove Financial Clutter, Add Admin Metrics
 
-- ✅ Real trend calculations
-- ✅ Recent Activity feed wired up
-- ✅ Missing platform metrics added
-- ⬜ Date range selector for Dashboard
+**Remove from Dashboard:**
+- "Financial Overview" section (individual expense/income/debt totals)
+- "Savings Progress" card (goals completed, progress bars)
+- Quick stats strip showing Accounts, Bills, Debts, Goals, Transfers, Categories
+- Net Worth, Budgets, Active Recurring cards
+- Category Distribution chart (user-level data)
 
-## Phase 3: Enhanced User Management
+**Replace with:**
+- **Revenue/Subscription metrics row**: Active subscriptions, trial conversion rate, MRR estimate, churn count
+- **Engagement metrics**: Daily/weekly active users (based on last_sign_in_at), avg transactions per user, new signups this week
+- **Platform health summary**: inline indicators for system status pulled from settings health check
+- Keep: Total Users, Transaction Volume chart (useful for platform growth), User Growth chart, Recent Activity, Waitlist count
 
-- ⬜ Pagination for Users list (server-side)
-- ⬜ More user filters (verified/unverified, active/suspended)
-- ⬜ Enhanced UserDetail (budget, recurring, bills, subscription tabs)
-- ⬜ Bulk user actions
+### 2. UserDetail Page -- Simplify to Administrative View
 
-## Phase 4: Functional Settings and New Pages
+**Remove tabs:**
+- Bills tab
+- Budgets tab  
+- Recurring Transactions tab
+- Net Worth snapshots
+- Goals tab (savings goals)
+- Accounts tab details
+- Debts tab
 
-- ⬜ Make Settings page functional
-- ⬜ Subscriptions management page
-- ⬜ Enhanced AdminLayout header (breadcrumbs, notifications, search)
+**Keep/Add:**
+- User profile card with status, role, subscription info
+- Admin actions (suspend, delete, promote, demote)
+- **Activity summary**: total transaction count, last active date, account age
+- **Subscription tab**: show subscription status, trial dates, plan details
+- **Sessions tab**: show active sessions with ability to revoke (already have RPCs for this)
+- Recent transactions (last 10, read-only, for context)
 
-## Phase 5: Data Export and Polish
+### 3. Subscriptions Page -- Enhance for Revenue Management
 
-- ✅ CSV export on Transactions and Waitlist
-- ⬜ CSV export on Users and Dashboard
-- ⬜ Mobile responsiveness
-- ⬜ Empty states and error handling improvements
+The existing Subscriptions page is good. Enhance with:
+- Add ability to manually change subscription status (extend trial, cancel, reactivate)
+- Show revenue/MRR calculation in stats cards
+
+### 4. Dashboard Stats Hook/Edge Function -- Trim Data
+
+Update `admin-stats` edge function and `useAdminDashboardStats` to stop returning:
+- Debt balances, savings goals, completed goals, savings progress/target
+- Budget counts, recurring transaction details
+- Asset/liability/net worth totals
+- Debt payment counts, goal contribution counts
+
+Instead return:
+- Subscription metrics (active, trialing, cancelled, conversion rate)
+- Engagement metrics (users active in last 7d, 30d)
+- Simplified transaction volume (just totals for the chart)
+
+### 5. Sidebar -- Already Clean (No Changes Needed)
+
+The sidebar already has the right structure: Dashboard, Users, Transactions, Subscriptions, Waitlist, Settings.
+
+---
+
+## Technical Details
+
+### Files to Modify
+
+**`src/pages/admin/Dashboard.tsx`**
+- Remove Financial Overview section (lines 248-289)
+- Remove Savings Progress card (lines 302-362)
+- Remove Quick Stats strip with user-data metrics (lines 176)
+- Remove New Metrics Row showing recurring/budgets/net worth (lines 179-234)
+- Replace with subscription and engagement metrics cards
+- Keep: primary stats (Users, Transactions, Volume, Waitlist), Transaction Volume chart, User Growth chart, Recent Activity
+
+**`src/hooks/admin/useAdminDashboardStats.ts`**
+- Simplify `DashboardStats` interface to remove `features` bloat
+- Add engagement and subscription fields
+
+**`supabase/functions/admin-stats/index.ts`**
+- Remove queries for: debts, savings_goals, categories, bills, assets, liabilities, networth, debt_payments, goal_contributions, budgets
+- Add: active users in last 7d/30d query (from auth.users last_sign_in_at), subscription conversion rate
+- Keep: user count, transaction aggregation, monthly chart data, recent activity, waitlist count
+
+**`src/pages/admin/UserDetail.tsx`**
+- Remove Bills, Budgets, Recurring, Goals, Debts, Accounts tabs
+- Simplify to: Overview (profile + admin actions), Subscription, Sessions, Recent Transactions
+- Add sessions management using existing `list_user_sessions` and `revoke_user_session` RPCs
+
+**`src/hooks/admin/useAdminUserDetail.ts`**
+- Remove fetching of bills, budgets, recurring_transactions, networth_snapshots, savings_goals, debts, accounts detail
+- Add session fetching
+
+**`supabase/functions/admin-user-detail/index.ts`**
+- Remove queries for bills, budgets, recurring, goals, debts, accounts
+- Add: user session data, subscription detail, basic activity summary (transaction counts)
+
+**`supabase/functions/admin-subscriptions/index.ts`**
+- Add POST handler for status changes (extend trial, cancel, reactivate)
+
+**`src/pages/admin/Subscriptions.tsx`**
+- Add action dropdown per subscription row for status management
+
+### No Changes Needed
+- `Users.tsx` -- already properly focused on user management
+- `Transactions.tsx` -- already properly focused on platform transactions
+- `Waitlist.tsx` -- already properly focused
+- `Settings.tsx` -- already properly focused
+- `AdminSidebar.tsx` -- navigation is already correct
+- `AdminLayout.tsx` -- layout is fine
+
