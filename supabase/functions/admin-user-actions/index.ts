@@ -46,6 +46,10 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Get admin user id for audit logging
+    const { data: { user: adminUser } } = await userClient.auth.getUser()
+    const adminUserId = adminUser?.id
+
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
     let result: { success: boolean; message: string }
@@ -132,6 +136,17 @@ Deno.serve(async (req) => {
           JSON.stringify({ error: `Unknown action: ${action}` }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+    }
+
+    // Audit log
+    if (adminUserId) {
+      await adminClient.from('admin_audit_log').insert({
+        admin_user_id: adminUserId,
+        action,
+        target_type: 'user',
+        target_id: userId,
+        details: { result: result.message, ...(data || {}) },
+      })
     }
 
     return new Response(

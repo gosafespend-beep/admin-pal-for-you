@@ -9,6 +9,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  BarChart3,
+  Shield,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -35,7 +37,9 @@ const mainNavItems = [
   { title: "Users", url: "/admin/users", icon: Users, color: "text-info" },
   { title: "Transactions", url: "/admin/transactions", icon: Receipt, color: "text-purple" },
   { title: "Subscriptions", url: "/admin/subscriptions", icon: CreditCard, color: "text-orange" },
+  { title: "Analytics", url: "/admin/analytics", icon: BarChart3, color: "text-pink" },
   { title: "Waitlist", url: "/admin/waitlist", icon: ClipboardList, color: "text-warning" },
+  { title: "Audit Log", url: "/admin/audit-log", icon: Shield, color: "text-muted-foreground" },
 ];
 
 const settingsNavItems = [

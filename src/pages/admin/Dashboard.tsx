@@ -20,6 +20,7 @@ import { QuickStatsGrid } from "@/components/admin/QuickStatsGrid";
 import { RecentActivity } from "@/components/admin/RecentActivity";
 import { useAdminDashboardStats } from "@/hooks/admin/useAdminDashboardStats";
 import { AdminErrorState } from "@/components/admin/AdminErrorState";
+import { DashboardAlerts } from "@/components/admin/DashboardAlerts";
 import { Card, CardContent } from "@/components/ui/card";
 
 function formatCurrency(amount: number): string {
@@ -95,6 +96,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Dashboard Alerts */}
+      {!isLoading && stats && <DashboardAlerts stats={stats} />}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
