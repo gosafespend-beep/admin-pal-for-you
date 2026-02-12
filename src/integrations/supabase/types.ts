@@ -253,57 +253,90 @@ export type Database = {
       }
       blog_posts: {
         Row: {
+          article_schema_enabled: boolean | null
           author_name: string
+          canonical_url: string | null
           category: string | null
           content: string | null
           created_at: string
+          cta_button_text: string | null
+          cta_description: string | null
+          cta_headline: string | null
+          cta_url: string | null
           excerpt: string | null
+          faq_schema_enabled: boolean | null
           featured_image: string | null
+          focus_keyword: string | null
           id: string
+          is_featured: boolean | null
           is_published: boolean
           meta_description: string | null
           meta_title: string | null
+          og_image: string | null
           published_at: string | null
           reading_time_minutes: number
           scheduled_publish_at: string | null
+          secondary_keywords: string[] | null
           slug: string
           tags: string[]
           title: string
           updated_at: string
         }
         Insert: {
+          article_schema_enabled?: boolean | null
           author_name?: string
+          canonical_url?: string | null
           category?: string | null
           content?: string | null
           created_at?: string
+          cta_button_text?: string | null
+          cta_description?: string | null
+          cta_headline?: string | null
+          cta_url?: string | null
           excerpt?: string | null
+          faq_schema_enabled?: boolean | null
           featured_image?: string | null
+          focus_keyword?: string | null
           id?: string
+          is_featured?: boolean | null
           is_published?: boolean
           meta_description?: string | null
           meta_title?: string | null
+          og_image?: string | null
           published_at?: string | null
           reading_time_minutes?: number
           scheduled_publish_at?: string | null
+          secondary_keywords?: string[] | null
           slug: string
           tags?: string[]
           title: string
           updated_at?: string
         }
         Update: {
+          article_schema_enabled?: boolean | null
           author_name?: string
+          canonical_url?: string | null
           category?: string | null
           content?: string | null
           created_at?: string
+          cta_button_text?: string | null
+          cta_description?: string | null
+          cta_headline?: string | null
+          cta_url?: string | null
           excerpt?: string | null
+          faq_schema_enabled?: boolean | null
           featured_image?: string | null
+          focus_keyword?: string | null
           id?: string
+          is_featured?: boolean | null
           is_published?: boolean
           meta_description?: string | null
           meta_title?: string | null
+          og_image?: string | null
           published_at?: string | null
           reading_time_minutes?: number
           scheduled_publish_at?: string | null
+          secondary_keywords?: string[] | null
           slug?: string
           tags?: string[]
           title?: string
