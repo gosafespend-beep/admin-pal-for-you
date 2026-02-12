@@ -37,22 +37,25 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
+    // All data fetched via SQL RPCs - no in-memory filtering
     const [
       overviewResult,
       monthlyResult,
       recentActivityResult,
-      usersResult,
+      engagementResult,
+      signupsChartResult,
       subscriptionsResult,
     ] = await Promise.all([
       adminClient.rpc('admin_overview_stats'),
       adminClient.rpc('admin_monthly_transaction_stats'),
       adminClient.rpc('admin_recent_activity', { p_limit: 15 }),
-      adminClient.auth.admin.listUsers({ perPage: 1000 }),
+      adminClient.rpc('admin_user_engagement_stats'),
+      adminClient.rpc('admin_user_signups_chart'),
       adminClient.from('subscriptions').select('status, trial_start, trial_end, current_period_start, current_period_end'),
     ])
 
     const overview = overviewResult.data || {}
-    const users = usersResult.data?.users || []
+    const engagement = engagementResult.data || {}
     const subscriptions = subscriptionsResult.data || []
 
     const monthlyData = (monthlyResult.data || []).map((m: Record<string, unknown>) => ({
@@ -64,37 +67,11 @@ Deno.serve(async (req) => {
       incomeCount: Number(m.income_count),
     }))
 
-    // User signups over time (last 12 months)
-    const now = new Date()
-    const userSignups = []
-    for (let i = 11; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-      const count = users.filter((u: { created_at: string }) => {
-        const createdAt = new Date(u.created_at)
-        return createdAt >= date && createdAt < nextMonth
-      }).length
-      userSignups.push({
-        month: date.toISOString().slice(0, 7),
-        label: date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-        count,
-      })
-    }
-
-    // Engagement: active users in last 7d and 30d
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-    const activeUsers7d = users.filter((u: { last_sign_in_at: string | null }) => 
-      u.last_sign_in_at && new Date(u.last_sign_in_at) >= sevenDaysAgo
-    ).length
-    const activeUsers30d = users.filter((u: { last_sign_in_at: string | null }) => 
-      u.last_sign_in_at && new Date(u.last_sign_in_at) >= thirtyDaysAgo
-    ).length
-
-    // New signups this week
-    const newSignupsThisWeek = users.filter((u: { created_at: string }) => 
-      new Date(u.created_at) >= sevenDaysAgo
-    ).length
+    const userSignups = (signupsChartResult.data || []).map((s: Record<string, unknown>) => ({
+      month: s.month_key,
+      label: s.month_label,
+      count: Number(s.signup_count),
+    }))
 
     // Subscription metrics
     const activeSubs = subscriptions.filter((s: { status: string }) => s.status === 'active').length
@@ -102,28 +79,21 @@ Deno.serve(async (req) => {
     const cancelledSubs = subscriptions.filter((s: { status: string }) => s.status === 'cancelled').length
     const expiredSubs = subscriptions.filter((s: { status: string }) => s.status === 'expired').length
     const totalSubs = subscriptions.length
-
-    // Trial conversion rate: active / (active + expired + cancelled) 
     const convertedOrChurned = activeSubs + expiredSubs + cancelledSubs
     const trialConversionRate = convertedOrChurned > 0 ? (activeSubs / convertedOrChurned) * 100 : 0
 
-    // Avg transactions per user
+    // Derived from RPCs
+    const totalUsers = Number(engagement.total_users || 0)
     const totalTransactions = Number(overview.totalExpenses || 0) + Number(overview.totalIncomes || 0) + Number(overview.totalTransfers || 0)
-    const avgTransactionsPerUser = users.length > 0 ? totalTransactions / users.length : 0
+    const avgTransactionsPerUser = totalUsers > 0 ? totalTransactions / totalUsers : 0
 
-    // User trend
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const currentMonthUsers = users.filter((u: { created_at: string }) => new Date(u.created_at) >= currentMonthStart).length
-    const prevMonthUsers = users.filter((u: { created_at: string }) => {
-      const d = new Date(u.created_at)
-      return d >= prevMonthStart && d < currentMonthStart
-    }).length
-    const userTrend = prevMonthUsers > 0 ? ((currentMonthUsers - prevMonthUsers) / prevMonthUsers) * 100 : 0
+    const currentMonthSignups = Number(engagement.current_month_signups || 0)
+    const prevMonthSignups = Number(engagement.prev_month_signups || 0)
+    const userTrend = prevMonthSignups > 0 ? ((currentMonthSignups - prevMonthSignups) / prevMonthSignups) * 100 : 0
 
     const stats = {
       overview: {
-        totalUsers: users.length,
+        totalUsers,
         activeProfiles: Number(overview.totalProfiles || 0),
         totalTransactions,
         totalExpenses: Number(overview.totalExpenses || 0),
@@ -143,9 +113,9 @@ Deno.serve(async (req) => {
         trialConversionRate: Math.round(trialConversionRate * 10) / 10,
       },
       engagement: {
-        activeUsers7d,
-        activeUsers30d,
-        newSignupsThisWeek,
+        activeUsers7d: Number(engagement.active_7d || 0),
+        activeUsers30d: Number(engagement.active_30d || 0),
+        newSignupsThisWeek: Number(engagement.new_this_week || 0),
         avgTransactionsPerUser: Math.round(avgTransactionsPerUser * 10) / 10,
       },
       trends: {
