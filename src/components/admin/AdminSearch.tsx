@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings } from "lucide-react";
+import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -18,6 +18,7 @@ const pages = [
   { name: "Subscriptions", path: "/subscriptions", icon: CreditCard, keywords: "plans billing" },
   { name: "Waitlist", path: "/waitlist", icon: ClipboardList, keywords: "signups emails" },
   { name: "Settings", path: "/settings", icon: Settings, keywords: "config health admins" },
+  { name: "Blog", path: "/blog", icon: FileText, keywords: "articles posts content cms" },
 ];
 
 export function AdminSearch() {
