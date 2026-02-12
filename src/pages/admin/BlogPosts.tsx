@@ -1,25 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  FileText,
-  Search,
-  Plus,
-  Clock,
-  CheckCircle,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  RefreshCw,
-  MoreHorizontal,
-  Eye,
-  EyeOff,
-  Pencil,
+  FileText, Search, Plus, Clock, CheckCircle, Trash2, ChevronLeft,
+  ChevronRight, Download, RefreshCw, MoreHorizontal, Eye, EyeOff,
+  Pencil, ArrowUpDown, CalendarClock, X,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -37,6 +27,7 @@ import {
 import { format } from "date-fns";
 import { useAdminBlogList, useBlogActions, BlogFilters } from "@/hooks/admin/useAdminBlog";
 import { AdminErrorState } from "@/components/admin/AdminErrorState";
+import { BulkActionsBar } from "@/components/admin/BulkActionsBar";
 
 function exportToCSV(data: Record<string, unknown>[], filename: string) {
   if (!data.length) return;
@@ -57,16 +48,15 @@ function exportToCSV(data: Record<string, unknown>[], filename: string) {
 export default function BlogPosts() {
   const navigate = useNavigate();
   const [filters, setFilters] = useState<BlogFilters>({
-    search: "",
-    status: "",
-    category: "",
-    page: 1,
-    pageSize: 20,
+    search: "", status: "", category: "", page: 1, pageSize: 20,
+    sortBy: "created_at", sortOrder: "desc",
   });
   const [searchInput, setSearchInput] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const { data, isLoading, error, refetch } = useAdminBlogList(filters);
-  const { deletePost, togglePublish } = useBlogActions();
+  const { deletePost, togglePublish, bulkUpdate, bulkDelete } = useBlogActions();
 
   const posts = data?.data || [];
   const counts = data?.statusCounts || { total: 0, published: 0, draft: 0 };
@@ -75,15 +65,51 @@ export default function BlogPosts() {
 
   const handleSearch = () => setFilters(f => ({ ...f, search: searchInput, page: 1 }));
 
+  const toggleSort = (col: string) => {
+    setFilters(f => ({
+      ...f,
+      sortBy: col,
+      sortOrder: f.sortBy === col && f.sortOrder === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === posts.length) setSelectedIds([]);
+    else setSelectedIds(posts.map(p => p.id));
+  };
+
+  const handleBulkPublish = () => {
+    bulkUpdate.mutate({ ids: selectedIds, updates: { is_published: true } }, { onSuccess: () => setSelectedIds([]) });
+  };
+
+  const handleBulkUnpublish = () => {
+    bulkUpdate.mutate({ ids: selectedIds, updates: { is_published: false } }, { onSuccess: () => setSelectedIds([]) });
+  };
+
+  const handleBulkDelete = () => {
+    bulkDelete.mutate(selectedIds, { onSuccess: () => { setSelectedIds([]); setShowBulkDeleteConfirm(false); } });
+  };
+
+  const SortHeader = ({ column, children }: { column: string; children: React.ReactNode }) => (
+    <TableHead
+      className="text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+      onClick={() => toggleSort(column)}
+    >
+      <span className="flex items-center gap-1">
+        {children}
+        <ArrowUpDown className={`h-3 w-3 ${filters.sortBy === column ? "text-primary" : "text-muted-foreground/50"}`} />
+      </span>
+    </TableHead>
+  );
+
   if (error) {
     return (
       <div className="animate-fade-in">
-        <AdminErrorState
-          icon={FileText}
-          title="Failed to load blog posts"
-          description="Please check your connection and try again."
-          onRetry={() => refetch()}
-        />
+        <AdminErrorState icon={FileText} title="Failed to load blog posts" description="Please check your connection and try again." onRetry={() => refetch()} />
       </div>
     );
   }
@@ -199,11 +225,17 @@ export default function BlogPosts() {
           <Table>
             <TableHeader>
               <TableRow className="border-border/30 hover:bg-transparent">
-                <TableHead className="text-muted-foreground">Title</TableHead>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={posts.length > 0 && selectedIds.length === posts.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
+                <SortHeader column="title">Title</SortHeader>
                 <TableHead className="text-muted-foreground hidden md:table-cell">Category</TableHead>
                 <TableHead className="text-muted-foreground">Status</TableHead>
-                <TableHead className="text-muted-foreground hidden md:table-cell">Published</TableHead>
-                <TableHead className="text-muted-foreground hidden lg:table-cell">Read Time</TableHead>
+                <SortHeader column="published_at">Published</SortHeader>
+                <SortHeader column="reading_time_minutes">Read Time</SortHeader>
                 <TableHead className="w-[80px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -211,17 +243,18 @@ export default function BlogPosts() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i} className="border-border/30">
+                    <TableCell><div className="h-4 w-4 shimmer rounded" /></TableCell>
                     <TableCell><div className="h-4 w-48 shimmer rounded" /></TableCell>
                     <TableCell className="hidden md:table-cell"><div className="h-4 w-20 shimmer rounded" /></TableCell>
                     <TableCell><div className="h-5 w-20 shimmer rounded-full" /></TableCell>
-                    <TableCell className="hidden md:table-cell"><div className="h-4 w-24 shimmer rounded" /></TableCell>
-                    <TableCell className="hidden lg:table-cell"><div className="h-4 w-16 shimmer rounded" /></TableCell>
+                    <TableCell><div className="h-4 w-24 shimmer rounded" /></TableCell>
+                    <TableCell><div className="h-4 w-16 shimmer rounded" /></TableCell>
                     <TableCell><div className="h-4 w-8 shimmer rounded" /></TableCell>
                   </TableRow>
                 ))
               ) : posts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center">
+                  <TableCell colSpan={7} className="h-32 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <FileText className="h-8 w-8 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No articles found</p>
@@ -234,6 +267,12 @@ export default function BlogPosts() {
               ) : (
                 posts.map((post) => (
                   <TableRow key={post.id} className="border-border/30 hover:bg-card/50 cursor-pointer" onClick={() => navigate(`/blog/editor/${post.id}`)}>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.includes(post.id)}
+                        onCheckedChange={() => toggleSelect(post.id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-0.5">
                         <span className="font-medium text-foreground">{post.title}</span>
@@ -248,18 +287,26 @@ export default function BlogPosts() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={`border gap-1 ${post.is_published
-                        ? "bg-primary/10 text-primary border-primary/20"
-                        : "bg-warning/10 text-warning border-warning/20"
-                      }`}>
-                        {post.is_published ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                        {post.is_published ? "Published" : "Draft"}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge className={`border gap-1 ${post.is_published
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-warning/10 text-warning border-warning/20"
+                        }`}>
+                          {post.is_published ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                          {post.is_published ? "Published" : "Draft"}
+                        </Badge>
+                        {!post.is_published && post.scheduled_publish_at && (
+                          <Badge variant="outline" className="text-xs gap-1 border-accent/30 text-accent-foreground">
+                            <CalendarClock className="h-3 w-3" />
+                            {format(new Date(post.scheduled_publish_at), "MMM d")}
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground">
                       {post.published_at ? format(new Date(post.published_at), 'MMM d, yyyy') : "—"}
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground">
                       {post.reading_time_minutes} min
                     </TableCell>
                     <TableCell>
@@ -324,6 +371,40 @@ export default function BlogPosts() {
           )}
         </CardContent>
       </Card>
+
+      {/* Bulk Actions */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-card border border-border shadow-2xl rounded-xl px-6 py-3 animate-fade-in">
+          <span className="text-sm font-medium text-foreground">{selectedIds.length} selected</span>
+          <div className="h-6 w-px bg-border" />
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleBulkPublish} disabled={bulkUpdate.isPending}>
+            <Eye className="h-3.5 w-3.5" /> Publish
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleBulkUnpublish} disabled={bulkUpdate.isPending}>
+            <EyeOff className="h-3.5 w-3.5" /> Unpublish
+          </Button>
+          <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10" disabled={bulkDelete.isPending}>
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {selectedIds.length} articles?</AlertDialogTitle>
+                <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground">Delete All</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedIds([])}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
