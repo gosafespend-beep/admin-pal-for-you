@@ -112,7 +112,7 @@ export default function UserDetail() {
           <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="mr-2 h-4 w-4" /> Try Again
           </Button>
-          <Button variant="outline" onClick={() => navigate("/admin/users")}>
+          <Button variant="outline" onClick={() => navigate("/users")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Users
           </Button>
         </div>
@@ -142,7 +142,7 @@ export default function UserDetail() {
         {
           onSuccess: () => {
             setConfirmDialog({ open: false, action: null, title: "", description: "" });
-            if (confirmDialog.action === "delete") navigate("/admin/users");
+            if (confirmDialog.action === "delete") navigate("/users");
             else refetch();
           },
         }
@@ -155,7 +155,7 @@ export default function UserDetail() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/admin/users")} className="shrink-0">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/users")} className="shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>

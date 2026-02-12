@@ -20,7 +20,7 @@ export default function AdminLogin() {
 
   useEffect(() => {
     if (!isLoading && user && isAdmin) {
-      navigate("/admin");
+      navigate("/dashboard");
     }
   }, [user, isAdmin, isLoading, navigate]);
 
@@ -34,7 +34,7 @@ export default function AdminLogin() {
         title: "Welcome back!",
         description: "You've successfully signed in to the admin panel.",
       });
-      navigate("/admin");
+      navigate("/dashboard");
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Invalid credentials or insufficient permissions.";
       toast({

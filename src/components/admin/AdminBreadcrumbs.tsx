@@ -9,11 +9,13 @@ import {
 } from "@/components/ui/breadcrumb";
 
 const routeLabels: Record<string, string> = {
-  admin: "Dashboard",
+  dashboard: "Dashboard",
   users: "Users",
   transactions: "Transactions",
   waitlist: "Waitlist",
   subscriptions: "Subscriptions",
+  analytics: "Analytics",
+  "audit-log": "Audit Log",
   settings: "Settings",
 };
 
@@ -28,11 +30,6 @@ export function AdminBreadcrumbs() {
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
     currentPath += `/${segment}`;
-
-    if (segment === "admin" && i === 0) {
-      items.push({ label: "Dashboard", path: "/admin" });
-      continue;
-    }
 
     // UUID segment = user detail
     if (/^[0-9a-f-]{36}$/i.test(segment)) {

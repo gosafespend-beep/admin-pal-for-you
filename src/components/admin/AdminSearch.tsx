@@ -12,12 +12,12 @@ import {
 } from "@/components/ui/command";
 
 const pages = [
-  { name: "Dashboard", path: "/admin", icon: LayoutDashboard, keywords: "home overview stats" },
-  { name: "Users", path: "/admin/users", icon: Users, keywords: "members accounts people" },
-  { name: "Transactions", path: "/admin/transactions", icon: Receipt, keywords: "expenses income payments" },
-  { name: "Subscriptions", path: "/admin/subscriptions", icon: CreditCard, keywords: "plans billing" },
-  { name: "Waitlist", path: "/admin/waitlist", icon: ClipboardList, keywords: "signups emails" },
-  { name: "Settings", path: "/admin/settings", icon: Settings, keywords: "config health admins" },
+  { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, keywords: "home overview stats" },
+  { name: "Users", path: "/users", icon: Users, keywords: "members accounts people" },
+  { name: "Transactions", path: "/transactions", icon: Receipt, keywords: "expenses income payments" },
+  { name: "Subscriptions", path: "/subscriptions", icon: CreditCard, keywords: "plans billing" },
+  { name: "Waitlist", path: "/waitlist", icon: ClipboardList, keywords: "signups emails" },
+  { name: "Settings", path: "/settings", icon: Settings, keywords: "config health admins" },
 ];
 
 export function AdminSearch() {

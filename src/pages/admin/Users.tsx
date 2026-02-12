@@ -266,7 +266,7 @@ export default function Users() {
               renderCard={(user) => (
                 <div
                   className="flex items-center gap-3 cursor-pointer"
-                  onClick={() => navigate(`/admin/users/${user.id}`)}
+                   onClick={() => navigate(`/users/${user.id}`)}
                 >
                   <Avatar className="h-10 w-10 border-2 border-border/50">
                     <AvatarImage src={user.avatar_url || undefined} />
@@ -388,7 +388,7 @@ function UserRow({ user, selected, onSelect }: { user: AdminUser; selected: bool
   return (
     <TableRow 
       className="border-border/30 hover:bg-card/50 transition-colors cursor-pointer"
-      onClick={() => navigate(`/admin/users/${user.id}`)}
+      onClick={() => navigate(`/users/${user.id}`)}
     >
       <TableCell onClick={(e) => e.stopPropagation()}>
         <Checkbox checked={selected} onCheckedChange={onSelect} />
@@ -455,7 +455,7 @@ function UserRow({ user, selected, onSelect }: { user: AdminUser; selected: bool
           <DropdownMenuContent align="end" className="w-[180px]" onClick={(e) => e.stopPropagation()}>
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2" onClick={() => navigate(`/admin/users/${user.id}`)}>
+            <DropdownMenuItem className="gap-2" onClick={() => navigate(`/users/${user.id}`)}>
               <Eye className="h-4 w-4" /> View Details
             </DropdownMenuItem>
             <DropdownMenuItem className="gap-2">
