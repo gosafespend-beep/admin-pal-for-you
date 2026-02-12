@@ -1241,6 +1241,15 @@ export type Database = {
           total_amount: number
         }[]
       }
+      admin_user_engagement_stats: { Args: never; Returns: Json }
+      admin_user_signups_chart: {
+        Args: never
+        Returns: {
+          month_key: string
+          month_label: string
+          signup_count: number
+        }[]
+      }
       get_next_ref_number: {
         Args: { p_prefix: string; p_table_name: string; p_user_id: string }
         Returns: string

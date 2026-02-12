@@ -62,16 +62,16 @@ export function useAdminDashboardStats() {
   const queryClient = useQueryClient();
   const queryKey = ["admin", "dashboard-stats"];
 
-  // Subscribe to realtime changes on key tables to auto-refresh
+  // Subscribe to realtime INSERT events only to reduce noise
   useEffect(() => {
     const channel = supabase
       .channel("admin-dashboard-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "*", schema: "public", table: "expenses" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "*", schema: "public", table: "incomes" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "*", schema: "public", table: "transfers" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "*", schema: "public", table: "waitlist" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "expenses" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "incomes" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "transfers" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "subscriptions" }, () => queryClient.invalidateQueries({ queryKey }))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "waitlist" }, () => queryClient.invalidateQueries({ queryKey }))
       .subscribe();
 
     return () => {
@@ -100,6 +100,6 @@ export function useAdminDashboardStats() {
 
       return response.data;
     },
-    staleTime: 30000,
+    staleTime: 60000,
   });
 }
