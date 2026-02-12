@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo-optimized.webp";
 import {
   Sidebar,
   SidebarContent,
@@ -72,7 +72,7 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
           <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
-            <img src={logo} alt="Go Safe Spend" className="h-8 w-8 object-contain" />
+            <img src={logo} alt="Go Safe Spend" className="h-8 w-8 object-contain" width={32} height={32} loading="eager" />
             <div className="absolute inset-0 bg-gradient-to-t from-primary/10 to-transparent" />
           </div>
           {!collapsed && (

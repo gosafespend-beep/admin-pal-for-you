@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdminAuth } from "@/hooks/admin/useAdminAuth";
 import { useToast } from "@/hooks/use-toast";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo-optimized.webp";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -78,7 +78,7 @@ export default function AdminLogin() {
           <div className="relative">
             <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/30 to-primary/10 blur-xl animate-pulse-subtle" />
             <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-card via-card to-card/80 border border-primary/20 shadow-glow">
-              <img src={logo} alt="Go Safe Spend" className="h-16 w-16 object-contain" />
+              <img src={logo} alt="Go Safe Spend" className="h-16 w-16 object-contain" width={64} height={64} loading="eager" />
             </div>
           </div>
           <div className="space-y-2">
