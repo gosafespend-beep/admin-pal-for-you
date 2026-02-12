@@ -29,6 +29,17 @@ export interface BlogPost {
   meta_description: string | null;
   reading_time_minutes: number;
   scheduled_publish_at: string | null;
+  canonical_url: string | null;
+  focus_keyword: string | null;
+  secondary_keywords: string[];
+  og_image: string | null;
+  is_featured: boolean;
+  faq_schema_enabled: boolean;
+  article_schema_enabled: boolean;
+  cta_headline: string | null;
+  cta_description: string | null;
+  cta_button_text: string | null;
+  cta_url: string | null;
   created_at: string;
   updated_at: string;
 }

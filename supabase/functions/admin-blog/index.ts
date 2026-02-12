@@ -29,6 +29,12 @@ function validatePost(body: Record<string, unknown>, isUpdate = false): string |
   const excerpt = body.excerpt as string | undefined
   const meta_title = body.meta_title as string | undefined
   const meta_description = body.meta_description as string | undefined
+  const canonical_url = body.canonical_url as string | undefined
+  const focus_keyword = body.focus_keyword as string | undefined
+  const cta_headline = body.cta_headline as string | undefined
+  const cta_description = body.cta_description as string | undefined
+  const cta_button_text = body.cta_button_text as string | undefined
+  const cta_url = body.cta_url as string | undefined
 
   if (!isUpdate && !title) return 'Title is required'
   if (title && title.length > 200) return 'Title must be 200 characters or less'
@@ -39,6 +45,12 @@ function validatePost(body: Record<string, unknown>, isUpdate = false): string |
   if (excerpt && excerpt.length > 300) return 'Excerpt must be 300 characters or less'
   if (meta_title && meta_title.length > 60) return 'Meta title must be 60 characters or less'
   if (meta_description && meta_description.length > 160) return 'Meta description must be 160 characters or less'
+  if (canonical_url && !/^https?:\/\/.+/.test(canonical_url)) return 'Canonical URL must be a valid URL'
+  if (focus_keyword && focus_keyword.length > 100) return 'Focus keyword must be 100 characters or less'
+  if (cta_headline && cta_headline.length > 200) return 'CTA headline must be 200 characters or less'
+  if (cta_description && cta_description.length > 500) return 'CTA description must be 500 characters or less'
+  if (cta_button_text && cta_button_text.length > 50) return 'CTA button text must be 50 characters or less'
+  if (cta_url && !/^https?:\/\/.+/.test(cta_url)) return 'CTA URL must be a valid URL'
   return null
 }
 
@@ -167,6 +179,17 @@ async function handlePost(req: Request) {
     meta_description: body.meta_description || null,
     reading_time_minutes,
     scheduled_publish_at: body.scheduled_publish_at || null,
+    canonical_url: body.canonical_url || null,
+    focus_keyword: body.focus_keyword || null,
+    secondary_keywords: body.secondary_keywords || [],
+    og_image: body.og_image || null,
+    is_featured: body.is_featured || false,
+    faq_schema_enabled: body.faq_schema_enabled || false,
+    article_schema_enabled: body.article_schema_enabled !== false,
+    cta_headline: body.cta_headline || null,
+    cta_description: body.cta_description || null,
+    cta_button_text: body.cta_button_text || null,
+    cta_url: body.cta_url || 'https://app.gosafespend.com',
   }
   if (is_published) insertData.published_at = new Date().toISOString()
 
