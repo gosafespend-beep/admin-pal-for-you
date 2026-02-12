@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.admin-user-notes]
 verify_jwt = false
+
+[functions.admin-blog]
+verify_jwt = false

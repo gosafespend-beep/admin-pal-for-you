@@ -18,6 +18,8 @@ import Subscriptions from "./pages/admin/Subscriptions";
 import Settings from "./pages/admin/Settings";
 import Analytics from "./pages/admin/Analytics";
 import AuditLog from "./pages/admin/AuditLog";
+import BlogPosts from "./pages/admin/BlogPosts";
+import BlogEditor from "./pages/admin/BlogEditor";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +41,9 @@ const App = () => (
             <Route path="subscriptions" element={<Subscriptions />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="audit-log" element={<AuditLog />} />
+            <Route path="blog" element={<BlogPosts />} />
+            <Route path="blog/new" element={<BlogEditor />} />
+            <Route path="blog/editor/:id" element={<BlogEditor />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />

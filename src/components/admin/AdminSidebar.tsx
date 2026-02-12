@@ -11,6 +11,7 @@ import {
   Sparkles,
   BarChart3,
   Shield,
+  FileText,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -40,6 +41,7 @@ const mainNavItems = [
   { title: "Analytics", url: "/analytics", icon: BarChart3, color: "text-pink" },
   { title: "Waitlist", url: "/waitlist", icon: ClipboardList, color: "text-warning" },
   { title: "Audit Log", url: "/audit-log", icon: Shield, color: "text-muted-foreground" },
+  { title: "Blog", url: "/blog", icon: FileText, color: "text-info" },
 ];
 
 const settingsNavItems = [
