@@ -16,7 +16,7 @@ export function DashboardAlerts({ stats }: DashboardAlertsProps) {
     alerts.push({
       icon: Clock,
       text: `${stats.subscriptions.trialing} users currently on trial`,
-      link: "/admin/subscriptions",
+      link: "/subscriptions",
       color: "text-info",
     });
   }
@@ -26,7 +26,7 @@ export function DashboardAlerts({ stats }: DashboardAlertsProps) {
     alerts.push({
       icon: ClipboardList,
       text: `${stats.overview.waitlistCount} waitlist entries pending`,
-      link: "/admin/waitlist",
+      link: "/waitlist",
       color: "text-warning",
     });
   }
@@ -36,7 +36,7 @@ export function DashboardAlerts({ stats }: DashboardAlertsProps) {
     alerts.push({
       icon: AlertTriangle,
       text: `${stats.subscriptions.cancelled} cancelled subscriptions`,
-      link: "/admin/analytics",
+      link: "/analytics",
       color: "text-destructive",
     });
   }

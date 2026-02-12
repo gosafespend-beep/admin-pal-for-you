@@ -13,7 +13,7 @@ export function AdminLayout() {
 
   useEffect(() => {
     if (!isLoading && (!user || !isAdmin)) {
-      navigate("/admin/login");
+      navigate("/login");
     }
   }, [user, isAdmin, isLoading, navigate]);
 

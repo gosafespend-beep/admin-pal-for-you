@@ -33,17 +33,17 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 const mainNavItems = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard, color: "text-primary" },
-  { title: "Users", url: "/admin/users", icon: Users, color: "text-info" },
-  { title: "Transactions", url: "/admin/transactions", icon: Receipt, color: "text-purple" },
-  { title: "Subscriptions", url: "/admin/subscriptions", icon: CreditCard, color: "text-orange" },
-  { title: "Analytics", url: "/admin/analytics", icon: BarChart3, color: "text-pink" },
-  { title: "Waitlist", url: "/admin/waitlist", icon: ClipboardList, color: "text-warning" },
-  { title: "Audit Log", url: "/admin/audit-log", icon: Shield, color: "text-muted-foreground" },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, color: "text-primary" },
+  { title: "Users", url: "/users", icon: Users, color: "text-info" },
+  { title: "Transactions", url: "/transactions", icon: Receipt, color: "text-purple" },
+  { title: "Subscriptions", url: "/subscriptions", icon: CreditCard, color: "text-orange" },
+  { title: "Analytics", url: "/analytics", icon: BarChart3, color: "text-pink" },
+  { title: "Waitlist", url: "/waitlist", icon: ClipboardList, color: "text-warning" },
+  { title: "Audit Log", url: "/audit-log", icon: Shield, color: "text-muted-foreground" },
 ];
 
 const settingsNavItems = [
-  { title: "Settings", url: "/admin/settings", icon: Settings, color: "text-muted-foreground" },
+  { title: "Settings", url: "/settings", icon: Settings, color: "text-muted-foreground" },
 ];
 
 interface AdminSidebarProps {
@@ -56,8 +56,8 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
   const location = useLocation();
 
   const isActive = (path: string) => {
-    if (path === "/admin") {
-      return location.pathname === "/admin";
+    if (path === "/dashboard") {
+      return location.pathname === "/dashboard";
     }
     return location.pathname.startsWith(path);
   };
@@ -111,7 +111,7 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
                   >
                     <NavLink
                       to={item.url}
-                      end={item.url === "/admin"}
+                      end={item.url === "/dashboard"}
                       className="flex items-center gap-3"
                     >
                       <div className={cn(
