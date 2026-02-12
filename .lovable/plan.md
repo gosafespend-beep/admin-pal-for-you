@@ -1,134 +1,63 @@
 
+# Route Cleanup: Remove `/admin` Prefix from All Routes
 
-# Admin Panel Enhancement: Decision-Making and User Management Power Tools
+## Problem
+Since this is an admin-only application, nesting every route under `/admin` is redundant. Routes like `/admin/users` should just be `/users`, `/admin/transactions` should be `/transactions`, etc. The login page should be `/login`.
 
-## Overview
-The current admin panel has solid foundations (users, subscriptions, transactions, waitlist, settings). This plan adds the missing pieces that make it genuinely useful for day-to-day platform management and data-driven decision making.
+## What Changes
 
-## What's Missing and What We'll Add
+Every `/admin/...` path becomes a top-level path. The layout wrapper moves from `/admin` to `/` (root).
 
-### 1. Analytics Page (New) -- The Decision-Making Hub
-
-A dedicated Analytics page in the sidebar providing actionable insights:
-
-- **Retention Funnel**: Show signup-to-active conversion (registered users vs users with at least 1 transaction vs users active in last 30 days)
-- **Churn Risk Table**: Users who were active but haven't logged in for 14+ days, with their last activity date and subscription status -- lets admin decide who to reach out to
-- **Revenue Metrics**: MRR estimate based on active paid subscriptions, trial-to-paid conversion rate trend over time
-- **Subscription Lifecycle Chart**: A stacked bar or area chart showing active/trialing/cancelled/expired over the last 6 months
-- **Top Users by Activity**: Table of most active users (by transaction count) to identify power users and potential advocates
-
-### 2. Audit Log (New) -- Track Admin Actions
-
-Every admin action (suspend user, extend trial, promote/demote, revoke session, change subscription status, approve/reject waitlist) should be logged and visible:
-
-- New `admin_audit_log` database table: `id, admin_user_id, action, target_type, target_id, details (jsonb), created_at`
-- Audit Log page showing a filterable timeline of all admin actions
-- Helps with accountability and debugging ("who cancelled that subscription?")
-
-### 3. Bulk Actions on Users Page
-
-- Checkbox selection on the Users table
-- Bulk actions bar: "Suspend Selected", "Send Confirmation Email", "Export Selected"
-- Speeds up management when dealing with multiple users (e.g., suspending spam accounts)
-
-### 4. Dashboard Alerts/Notifications Banner
-
-At the top of the Dashboard, show actionable alerts based on data:
-
-- "X users have expiring trials in the next 3 days" (with link to filter them)
-- "X waitlist entries pending review" (with link)
-- "Y users haven't verified their email in 7+ days"
-- These are computed from existing data in the admin-stats edge function
-
-### 5. User Detail -- Quick Notes/Tags
-
-- Add ability for admins to tag users (e.g., "VIP", "Churning", "Spam") and add internal notes
-- New `admin_user_notes` table: `id, user_id, admin_id, note, tag, created_at`
-- Visible on the UserDetail page and filterable on the Users page
-- Enables team coordination and institutional memory
-
-### 6. Email Actions from Admin Panel
-
-- "Send Email" button on UserDetail page that opens a compose form
-- Uses existing Resend API key (already configured) via an edge function
-- Pre-built templates: Welcome, Trial Expiring Reminder, Account Suspended Notice
-- Useful for re-engaging churning users or communicating with specific users
-
----
-
-## Technical Details
-
-### New Database Tables
-
-**`admin_audit_log`**
-- `id` (uuid, PK)
-- `admin_user_id` (uuid, references auth.users)
-- `action` (text) -- e.g., 'suspend_user', 'extend_trial', 'approve_waitlist'
-- `target_type` (text) -- e.g., 'user', 'subscription', 'waitlist'
-- `target_id` (text)
-- `details` (jsonb) -- additional context
-- `created_at` (timestamptz)
-- RLS: admin-only read access
-
-**`admin_user_notes`**
-- `id` (uuid, PK)
-- `user_id` (uuid, references auth.users)
-- `admin_id` (uuid, references auth.users)
-- `note` (text)
-- `tag` (text, nullable) -- 'VIP', 'Churning', 'Spam', etc.
-- `created_at` (timestamptz)
-- RLS: admin-only read/write
-
-### New Files
-
-- `src/pages/admin/Analytics.tsx` -- Analytics dashboard page
-- `src/pages/admin/AuditLog.tsx` -- Audit log timeline page
-- `src/hooks/admin/useAdminAnalytics.ts` -- Hook for analytics data
-- `src/hooks/admin/useAdminAuditLog.ts` -- Hook for audit log
-- `src/hooks/admin/useAdminUserNotes.ts` -- Hook for user notes/tags
-- `src/hooks/admin/useAdminEmail.ts` -- Hook for sending emails
-- `src/components/admin/DashboardAlerts.tsx` -- Alerts banner component
-- `src/components/admin/UserNotes.tsx` -- Notes/tags component for UserDetail
-- `src/components/admin/BulkActionsBar.tsx` -- Floating bar for bulk user actions
-- `supabase/functions/admin-analytics/index.ts` -- Analytics data edge function
-- `supabase/functions/admin-audit-log/index.ts` -- Audit log CRUD edge function
-- `supabase/functions/admin-user-notes/index.ts` -- User notes CRUD edge function
-- `supabase/functions/admin-send-email/index.ts` -- Email sending edge function
-
-### Modified Files
-
-- `src/pages/admin/Dashboard.tsx` -- Add DashboardAlerts banner at top
-- `src/pages/admin/Users.tsx` -- Add checkbox column, bulk actions bar, tag filter
-- `src/pages/admin/UserDetail.tsx` -- Add UserNotes section, Send Email button
-- `src/components/admin/AdminSidebar.tsx` -- Add Analytics and Audit Log nav items
-- `src/App.tsx` -- Add routes for Analytics and AuditLog pages
-- `supabase/config.toml` -- Register new edge functions
-- All existing admin edge functions that perform actions (admin-user-actions, admin-subscriptions, admin-waitlist) -- Add audit log writes after each action
-
-### Migration
-
-One migration to create both new tables with RLS policies:
+### Route Mapping
 
 ```text
--- admin_audit_log table
-CREATE TABLE admin_audit_log (...)
-ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can read audit log" ON admin_audit_log FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'admin'));
-CREATE POLICY "Admins can insert audit log" ON admin_audit_log FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'));
-
--- admin_user_notes table  
-CREATE TABLE admin_user_notes (...)
-ALTER TABLE admin_user_notes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage notes" ON admin_user_notes FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin'));
+/admin/login        -->  /login
+/admin              -->  /dashboard
+/admin/users        -->  /users
+/admin/users/:id    -->  /users/:id
+/admin/transactions -->  /transactions
+/admin/subscriptions --> /subscriptions
+/admin/analytics    -->  /analytics
+/admin/waitlist     -->  /waitlist
+/admin/audit-log    -->  /audit-log
+/admin/settings     -->  /settings
 ```
 
-### Implementation Order
+Note: The root `/admin` (Dashboard) moves to `/dashboard` so the layout wrapper can sit at `/` cleanly.
 
-1. Database migration (audit log + user notes tables)
-2. Analytics page + edge function (highest value for decision-making)
-3. Dashboard alerts banner (uses existing stats data)
-4. Audit log page + integrate logging into existing action edge functions
-5. User notes/tags on UserDetail + tag filter on Users
-6. Bulk actions on Users page
-7. Email sending functionality
+### Files to Modify (7 files)
 
+**1. `src/App.tsx`** -- Restructure all route definitions
+- `/login` for AdminLogin
+- `AdminLayout` wraps `/` with child routes: `dashboard`, `users`, `users/:id`, `transactions`, `subscriptions`, `analytics`, `waitlist`, `audit-log`, `settings`
+- Remove the old `Index` page route (or redirect `/` to `/dashboard`)
+
+**2. `src/components/admin/AdminLayout.tsx`**
+- Change redirect from `/admin/login` to `/login`
+
+**3. `src/hooks/admin/useAdminAuth.ts`**
+- Change sign-out redirect from `/admin/login` to `/login`
+
+**4. `src/components/admin/AdminSidebar.tsx`**
+- Update all `mainNavItems` URLs: `/admin` to `/dashboard`, `/admin/users` to `/users`, etc.
+- Update `settingsNavItems`: `/admin/settings` to `/settings`
+- Update `isActive` logic to check `/dashboard` instead of `/admin`
+
+**5. `src/components/admin/AdminSearch.tsx`**
+- Update all `pages` paths from `/admin/...` to top-level paths
+
+**6. `src/components/admin/AdminBreadcrumbs.tsx`**
+- Update root path from `/admin` to `/dashboard`
+- Remove the special `admin` segment handling
+- Update `routeLabels` to include `dashboard: "Dashboard"`
+
+**7. `src/components/admin/DashboardAlerts.tsx`**
+- Update link paths: `/admin/subscriptions` to `/subscriptions`, `/admin/waitlist` to `/waitlist`, `/admin/analytics` to `/analytics`
+
+**8. `src/pages/admin/UserDetail.tsx`**
+- Update back-navigation from `/admin/users` to `/users`
+
+**9. `src/pages/admin/AdminLogin.tsx`**
+- Update post-login redirect from `/admin` to `/dashboard`
+
+No edge functions or database changes needed -- this is purely a frontend routing cleanup.
