@@ -66,14 +66,20 @@ export function useAdminAuth() {
             setState({ user: null, isAdmin: false, isLoading: false });
           }
         } else if (session?.user) {
-          // Re-check admin status on auth state change
-          const { data: isAdmin } = await supabase.rpc('is_admin');
-          if (isMounted) {
-            setState({ 
-              user: session.user, 
-              isAdmin: Boolean(isAdmin), 
-              isLoading: false 
-            });
+          try {
+            const { data: isAdmin } = await supabase.rpc('is_admin');
+            if (isMounted) {
+              setState({ 
+                user: session.user, 
+                isAdmin: Boolean(isAdmin), 
+                isLoading: false 
+              });
+            }
+          } catch (error) {
+            console.error('Error checking admin status in auth change:', error);
+            if (isMounted) {
+              setState({ user: session.user, isAdmin: false, isLoading: false });
+            }
           }
         }
       }
