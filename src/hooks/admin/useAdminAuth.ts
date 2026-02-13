@@ -19,7 +19,12 @@ export function useAdminAuth() {
 
   useEffect(() => {
     let isMounted = true;
-
+    const timeout = setTimeout(() => {
+      if (isMounted && state.isLoading) {
+        console.warn('Admin auth check timed out after 10s');
+        setState({ user: null, isAdmin: false, isLoading: false });
+      }
+    }, 10000);
     async function checkAdminStatus() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -87,6 +92,7 @@ export function useAdminAuth() {
 
     return () => {
       isMounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
