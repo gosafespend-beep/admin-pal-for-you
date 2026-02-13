@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
@@ -16,76 +16,78 @@ export function useAdminAuth() {
     isLoading: true,
   });
   const navigate = useNavigate();
+  const loadingRef = useRef(true);
 
   useEffect(() => {
     let isMounted = true;
+
+    const updateState = (newState: AdminAuthState) => {
+      if (isMounted) {
+        loadingRef.current = newState.isLoading;
+        setState(newState);
+      }
+    };
+
     const timeout = setTimeout(() => {
-      if (isMounted && state.isLoading) {
+      if (isMounted && loadingRef.current) {
         console.warn('Admin auth check timed out after 10s');
-        setState({ user: null, isAdmin: false, isLoading: false });
+        updateState({ user: null, isAdmin: false, isLoading: false });
       }
     }, 10000);
-    async function checkAdminStatus() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session?.user) {
-          if (isMounted) {
-            setState({ user: null, isAdmin: false, isLoading: false });
-          }
-          return;
-        }
 
-        // Check if user has admin role using the is_admin() function
-        const { data: isAdmin, error } = await supabase.rpc('is_admin');
-        
+    const checkAdminRole = async (user: User): Promise<boolean> => {
+      try {
+        const { data, error } = await supabase.rpc('is_admin');
         if (error) {
           console.error('Error checking admin status:', error);
-          if (isMounted) {
-            setState({ user: session.user, isAdmin: false, isLoading: false });
-          }
+          return false;
+        }
+        return Boolean(data);
+      } catch (error) {
+        console.error('Error checking admin role:', error);
+        return false;
+      }
+    };
+
+    // Initial auth check
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session?.user) {
+          updateState({ user: null, isAdmin: false, isLoading: false });
+          clearTimeout(timeout);
           return;
         }
 
-        if (isMounted) {
-          setState({ 
-            user: session.user, 
-            isAdmin: Boolean(isAdmin), 
-            isLoading: false 
-          });
-        }
+        const isAdmin = await checkAdminRole(session.user);
+        updateState({ user: session.user, isAdmin, isLoading: false });
+        clearTimeout(timeout);
       } catch (error) {
-        console.error('Error in admin auth check:', error);
-        if (isMounted) {
-          setState({ user: null, isAdmin: false, isLoading: false });
-        }
+        console.error('Error in initial auth check:', error);
+        updateState({ user: null, isAdmin: false, isLoading: false });
+        clearTimeout(timeout);
       }
-    }
+    };
 
-    checkAdminStatus();
+    initializeAuth();
 
+    // Ongoing auth state changes (does NOT control isLoading)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
+        if (!isMounted) return;
+
         if (event === 'SIGNED_OUT') {
-          if (isMounted) {
-            setState({ user: null, isAdmin: false, isLoading: false });
-          }
+          updateState({ user: null, isAdmin: false, isLoading: false });
         } else if (session?.user) {
-          try {
-            const { data: isAdmin } = await supabase.rpc('is_admin');
-            if (isMounted) {
-              setState({ 
-                user: session.user, 
-                isAdmin: Boolean(isAdmin), 
-                isLoading: false 
-              });
-            }
-          } catch (error) {
-            console.error('Error checking admin status in auth change:', error);
-            if (isMounted) {
-              setState({ user: session.user, isAdmin: false, isLoading: false });
-            }
-          }
+          // Use setTimeout to avoid Supabase auth deadlock
+          setTimeout(() => {
+            checkAdminRole(session.user!).then((isAdmin) => {
+              if (isMounted) {
+                updateState({ user: session.user!, isAdmin, isLoading: false });
+              }
+            });
+          }, 0);
         }
       }
     );
@@ -107,9 +109,8 @@ export function useAdminAuth() {
       throw error;
     }
 
-    // Check admin status after sign in
     const { data: isAdmin, error: roleError } = await supabase.rpc('is_admin');
-    
+
     if (roleError) {
       throw new Error('Failed to verify admin access');
     }
