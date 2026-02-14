@@ -206,7 +206,7 @@ export default function BlogEditor() {
   const [customLinkText, setCustomLinkText] = useState("");
   const [customLinkUrl, setCustomLinkUrl] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const cursorPosRef = useRef<number>(0);
+  const cursorPosRef = useRef<{ start: number; end: number; selectedText: string }>({ start: 0, end: 0, selectedText: "" });
 
   const { data: slugAvailable, isLoading: slugChecking } = useSlugCheck(slug, id);
 
@@ -386,9 +386,11 @@ export default function BlogEditor() {
   };
 
   const insertMarkdownLink = useCallback((linkText: string, url: string) => {
-    const link = `[${linkText}](${url})`;
-    const pos = cursorPosRef.current;
-    const newContent = content.substring(0, pos) + link + content.substring(pos);
+    const { start, end, selectedText } = cursorPosRef.current;
+    // If text was selected, wrap it; otherwise insert full markdown link
+    const finalText = selectedText || linkText;
+    const link = `[${finalText}](${url})`;
+    const newContent = content.substring(0, start) + link + content.substring(end);
     setContent(newContent);
     setLinkPopoverOpen(false);
     setLinkSearch("");
@@ -399,7 +401,7 @@ export default function BlogEditor() {
       const ta = textareaRef.current;
       if (ta) {
         ta.focus();
-        const newPos = pos + link.length;
+        const newPos = start + link.length;
         ta.setSelectionRange(newPos, newPos);
       }
     }, 0);
@@ -407,7 +409,15 @@ export default function BlogEditor() {
 
   const handleLinkPopoverOpen = (open: boolean) => {
     if (open) {
-      cursorPosRef.current = textareaRef.current?.selectionStart ?? content.length;
+      const ta = textareaRef.current;
+      const start = ta?.selectionStart ?? content.length;
+      const end = ta?.selectionEnd ?? content.length;
+      const selectedText = start !== end ? content.substring(start, end) : "";
+      cursorPosRef.current = { start, end, selectedText };
+      // Pre-fill custom link text with selected text
+      if (selectedText) {
+        setCustomLinkText(selectedText);
+      }
     }
     setLinkPopoverOpen(open);
   };
@@ -555,7 +565,7 @@ export default function BlogEditor() {
                     <Popover open={linkPopoverOpen} onOpenChange={handleLinkPopoverOpen}>
                       <PopoverTrigger asChild>
                         <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-xs">
-                          <Link2 className="h-3.5 w-3.5" /> Insert Link
+                          <Link2 className="h-3.5 w-3.5" /> {cursorPosRef.current.selectedText ? "Hyperlink Selection" : "Insert Link"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-80 p-0" align="start">
