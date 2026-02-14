@@ -138,7 +138,11 @@ export function useBlogActions() {
         headers,
         body: post,
       });
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        let message = response.error.message;
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        throw new Error(message);
+      }
       if (response.data?.error) throw new Error(response.data.error);
       return response.data.data as BlogPost;
     },
@@ -157,7 +161,11 @@ export function useBlogActions() {
         headers,
         body: post,
       });
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        let message = response.error.message;
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        throw new Error(message);
+      }
       if (response.data?.error) throw new Error(response.data.error);
       return response.data.data as BlogPost;
     },
@@ -176,7 +184,11 @@ export function useBlogActions() {
         headers,
         body: { id },
       });
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        let message = response.error.message;
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        throw new Error(message);
+      }
       return response.data;
     },
     onSuccess: () => {
@@ -194,7 +206,11 @@ export function useBlogActions() {
         headers,
         body: { id, is_published },
       });
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        let message = response.error.message;
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        throw new Error(message);
+      }
       return response.data.data as BlogPost;
     },
     onSuccess: (data) => {
@@ -212,7 +228,11 @@ export function useBlogActions() {
         headers,
         body: { ids, updates },
       });
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        let message = response.error.message;
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        throw new Error(message);
+      }
       return response.data;
     },
     onSuccess: () => {
@@ -230,7 +250,11 @@ export function useBlogActions() {
         headers,
         body: { ids },
       });
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        let message = response.error.message;
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        throw new Error(message);
+      }
       return response.data;
     },
     onSuccess: () => {
