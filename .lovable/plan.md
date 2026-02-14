@@ -1,50 +1,38 @@
 
 
-# Fix Blog Article Styling (For Real This Time)
+# Add Internal Links to Blog Editor
 
-## Root Cause
+## Overview
 
-The `typography` configuration was placed at the wrong level in the Tailwind config. It is currently at `theme.typography` (a sibling of `extend`), which **completely replaces** the default typography plugin styles. This means all base prose styles (heading sizes, list bullets, spacing, margins, font weights) are gone -- only the color overrides remain.
+Add a toolbar feature to the markdown editor that lets you search for and insert links to other blog articles directly. Instead of manually typing markdown links, you'll get a searchable dropdown of existing posts and insert them with one click.
 
-## Fix
+## How It Works
 
-Move the `typography` block from `theme.typography` into `theme.extend.typography`. This preserves all the default prose base styles while layering the dark theme color customizations on top.
+1. A new "Insert Link" button appears above the content textarea
+2. Clicking it opens a popover with a search field
+3. As you type, it searches your existing blog posts by title
+4. Clicking a result inserts a markdown link at the cursor position: `[Article Title](/blog/article-slug)`
+5. You can also insert a custom URL link with custom text
 
 ## Technical Details
 
-### File: `tailwind.config.ts`
+### File: `src/pages/admin/BlogEditor.tsx`
 
-Current (broken) structure:
-```
-theme: {
-  extend: {
-    colors: { ... },
-    ...boxShadow
-  },            // <-- extend ends here
-  typography: { // <-- WRONG: this replaces defaults
-    invert: { css: { ... } }
-  }
-}
-```
+- Add a markdown toolbar row above the textarea with an "Insert Link" button (using the existing `Link2` icon already imported)
+- The button opens a Popover containing:
+  - A search input to filter existing blog posts
+  - A scrollable list of matching posts (fetched from the existing `useAdminBlogList` hook)
+  - A "Custom URL" tab for external links with text + URL fields
+- On selection, insert `[title](/blog/slug)` at the current cursor position in the textarea
+- Use a ref on the textarea to track cursor position (`selectionStart`/`selectionEnd`)
 
-Fixed structure:
-```
-theme: {
-  extend: {
-    colors: { ... },
-    ...boxShadow,
-    typography: { // <-- CORRECT: inside extend, merges with defaults
-      invert: { css: { ... } }
-    }
-  }
-}
-```
+### No Backend Changes Needed
+
+The existing `useAdminBlogList` hook already supports search filtering -- it will be reused with a debounced search term to fetch matching posts.
 
 ### Files Changed
 
 | File | Change |
 |------|--------|
-| `tailwind.config.ts` | Move `typography` config from `theme` level into `theme.extend` |
-
-No other files need changes. The `prose prose-invert` classes on line 503 of `BlogEditor.tsx` will work correctly once the default styles are preserved.
+| `src/pages/admin/BlogEditor.tsx` | Add link insertion toolbar with internal post search popover above the content textarea |
 
