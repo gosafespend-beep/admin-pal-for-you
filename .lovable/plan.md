@@ -1,49 +1,65 @@
 
 
-# Seed the First Blog Post
+# Fix Blog Editor Save/Publish Failures
 
-## Overview
+## Problem
 
-Create the first blog post for Go Safe Spend by inserting it directly into the `blog_posts` table using a database migration. This bypasses the need for admin authentication and ensures the post is immediately available.
+When clicking "Save Draft" or "Publish" in the blog editor, the request fails silently. The root cause is a **missing CORS header** in the edge function.
 
-## The Blog Post
+The `admin-blog` edge function's CORS configuration does not include the `Access-Control-Allow-Methods` header. Without it, browsers only allow "simple" HTTP methods (GET, HEAD, POST) through CORS. Since the blog editor uses **PUT** for updates and **DELETE** for deletions, the browser blocks these requests during the preflight check.
 
-**Title:** How to Build a Budget That Actually Works in 2026
-**Slug:** `build-budget-that-works-2026`
-**Category:** Budgeting
-**Status:** Published and Featured
+This also means that the existing blog post (which was seeded via database migration) cannot be updated through the UI.
 
-The article is a comprehensive ~1,200 word guide covering:
-- Why most budgets fail
-- The 50/30/20 framework (with flexibility)
-- Automation strategies
-- Building financial buffers
-- Monthly and quarterly review habits
-- Tracking net worth
-- Common budgeting mistakes
+## Solution
 
-It includes full SEO metadata, a call-to-action block promoting Safe Spend, and structured data settings.
+### 1. Fix CORS headers in the edge function
+
+Add `Access-Control-Allow-Methods` to the `corsHeaders` object in `supabase/functions/admin-blog/index.ts` to explicitly allow all required HTTP methods.
+
+### 2. Improve error handling in the hook
+
+The current error handling in `useAdminBlog.ts` uses `response.error.message`, which for Supabase SDK errors returns a generic string like "Edge Function returned a non-2xx status code" instead of the actual error from the server. Update the mutation error handling to extract the real error message from the response body.
 
 ## Technical Details
 
-### Database Migration
+### Edge Function Change (`supabase/functions/admin-blog/index.ts`)
 
-A single `INSERT INTO blog_posts` statement with all fields populated:
+Update the `corsHeaders` object to include the methods header:
 
-- **Core content:** title, slug, full Markdown content (~1,200 words), excerpt
-- **SEO fields:** meta_title (under 60 chars), meta_description (under 160 chars), focus_keyword ("build a budget"), secondary_keywords, canonical_url (null for now)
-- **Publishing:** `is_published = true`, `published_at = now()`, `is_featured = true`
-- **Schema markup:** `article_schema_enabled = true`, `faq_schema_enabled = false`
-- **CTA block:** headline, description, button text, and URL pointing to `https://app.gosafespend.com`
-- **Tags:** budgeting, personal finance, money management, financial planning, saving money
-- **Reading time:** Auto-calculated (~6 minutes)
-- **Author:** Safe Spend Team
+```typescript
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, ...',
+}
+```
+
+### Hook Error Handling (`src/hooks/admin/useAdminBlog.ts`)
+
+Update mutations to try reading the actual error from the response context before falling back to the generic message:
+
+```typescript
+if (response.error) {
+  // Try to extract the actual error message from the response
+  let message = response.error.message;
+  try {
+    if (response.error.context) {
+      const body = await response.error.context.json();
+      if (body?.error) message = body.error;
+    }
+  } catch {}
+  throw new Error(message);
+}
+```
+
+### Audit Other Edge Functions
+
+All other `admin-*` edge functions likely have the same missing `Access-Control-Allow-Methods` header. They should be checked and updated for consistency, though this may not cause issues if they only use POST/GET.
 
 ### Files Changed
 
 | File | Change |
 |------|--------|
-| DB migration (new) | INSERT the blog post into `blog_posts` table |
-
-No code changes are needed -- this is purely a data seed operation.
+| `supabase/functions/admin-blog/index.ts` | Add `Access-Control-Allow-Methods` to CORS headers |
+| `src/hooks/admin/useAdminBlog.ts` | Improve error message extraction in mutations |
 
