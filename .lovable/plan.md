@@ -1,65 +1,64 @@
 
 
-# Fix Blog Editor Save/Publish Failures
+# Fix Blog Article Styling
 
 ## Problem
 
-When clicking "Save Draft" or "Publish" in the blog editor, the request fails silently. The root cause is a **missing CORS header** in the edge function.
-
-The `admin-blog` edge function's CORS configuration does not include the `Access-Control-Allow-Methods` header. Without it, browsers only allow "simple" HTTP methods (GET, HEAD, POST) through CORS. Since the blog editor uses **PUT** for updates and **DELETE** for deletions, the browser blocks these requests during the preflight check.
-
-This also means that the existing blog post (which was seeded via database migration) cannot be updated through the UI.
+The markdown preview in the blog editor looks unstyled because the `prose` CSS classes have no effect. The `@tailwindcss/typography` plugin is installed as a dependency but is **not registered** in `tailwind.config.ts`. Without it, `prose prose-invert` classes are ignored and all markdown renders as plain unstyled text -- no heading sizes, no list bullets, no link colors, no spacing.
 
 ## Solution
 
-### 1. Fix CORS headers in the edge function
+### 1. Register the typography plugin in Tailwind config
 
-Add `Access-Control-Allow-Methods` to the `corsHeaders` object in `supabase/functions/admin-blog/index.ts` to explicitly allow all required HTTP methods.
+Add `require("@tailwindcss/typography")` to the `plugins` array in `tailwind.config.ts`.
 
-### 2. Improve error handling in the hook
+### 2. Customize prose colors for the dark theme
 
-The current error handling in `useAdminBlog.ts` uses `response.error.message`, which for Supabase SDK errors returns a generic string like "Edge Function returned a non-2xx status code" instead of the actual error from the server. Update the mutation error handling to extract the real error message from the response body.
+Override the default typography theme colors to match the dark admin design system. This ensures headings, links, bold text, code blocks, and blockquotes all look consistent with the emerald/teal premium aesthetic.
 
 ## Technical Details
 
-### Edge Function Change (`supabase/functions/admin-blog/index.ts`)
+### File: `tailwind.config.ts`
 
-Update the `corsHeaders` object to include the methods header:
-
-```typescript
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, ...',
-}
-```
-
-### Hook Error Handling (`src/hooks/admin/useAdminBlog.ts`)
-
-Update mutations to try reading the actual error from the response context before falling back to the generic message:
+Add the typography plugin and customize prose colors:
 
 ```typescript
-if (response.error) {
-  // Try to extract the actual error message from the response
-  let message = response.error.message;
-  try {
-    if (response.error.context) {
-      const body = await response.error.context.json();
-      if (body?.error) message = body.error;
-    }
-  } catch {}
-  throw new Error(message);
-}
+plugins: [
+  require("tailwindcss-animate"),
+  require("@tailwindcss/typography"),
+],
 ```
 
-### Audit Other Edge Functions
+Add typography theme overrides inside `theme.extend`:
 
-All other `admin-*` edge functions likely have the same missing `Access-Control-Allow-Methods` header. They should be checked and updated for consistency, though this may not cause issues if they only use POST/GET.
+```typescript
+typography: {
+  invert: {
+    css: {
+      '--tw-prose-body': 'hsl(210 40% 90%)',
+      '--tw-prose-headings': 'hsl(210 40% 98%)',
+      '--tw-prose-links': 'hsl(160 84% 39%)',
+      '--tw-prose-bold': 'hsl(210 40% 98%)',
+      '--tw-prose-code': 'hsl(160 84% 39%)',
+      '--tw-prose-pre-bg': 'hsl(222 47% 7%)',
+      '--tw-prose-pre-code': 'hsl(210 40% 90%)',
+      '--tw-prose-quotes': 'hsl(215 20% 55%)',
+      '--tw-prose-quote-borders': 'hsl(160 84% 39%)',
+      '--tw-prose-counters': 'hsl(215 20% 55%)',
+      '--tw-prose-bullets': 'hsl(160 84% 39%)',
+      '--tw-prose-hr': 'hsl(217 33% 17%)',
+      '--tw-prose-th-borders': 'hsl(217 33% 17%)',
+      '--tw-prose-td-borders': 'hsl(217 33% 17%)',
+    },
+  },
+},
+```
 
 ### Files Changed
 
 | File | Change |
 |------|--------|
-| `supabase/functions/admin-blog/index.ts` | Add `Access-Control-Allow-Methods` to CORS headers |
-| `src/hooks/admin/useAdminBlog.ts` | Improve error message extraction in mutations |
+| `tailwind.config.ts` | Add `@tailwindcss/typography` to plugins, add prose color overrides for dark theme |
+
+No other files need changes -- the `prose prose-invert` classes already exist in `BlogEditor.tsx` and will work once the plugin is active.
 
