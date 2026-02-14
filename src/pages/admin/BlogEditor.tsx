@@ -33,7 +33,8 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAdminBlogPost, useBlogActions, useSlugCheck, BlogPost } from "@/hooks/admin/useAdminBlog";
+import { useAdminBlogPost, useAdminBlogList, useBlogActions, useSlugCheck, BlogPost } from "@/hooks/admin/useAdminBlog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const CATEGORIES = ["Budgeting", "Saving", "Investing", "Debt", "Tools", "News"];
 const AUTOSAVE_KEY = "blog-editor-autosave";
@@ -199,7 +200,24 @@ export default function BlogEditor() {
   const [ctaOpen, setCtaOpen] = useState(false);
   const [seoScoreOpen, setSeoScoreOpen] = useState(false);
 
+  // Link insertion state
+  const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
+  const [linkSearch, setLinkSearch] = useState("");
+  const [customLinkText, setCustomLinkText] = useState("");
+  const [customLinkUrl, setCustomLinkUrl] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const cursorPosRef = useRef<number>(0);
+
   const { data: slugAvailable, isLoading: slugChecking } = useSlugCheck(slug, id);
+
+  // Fetch blog posts for internal link search
+  const { data: linkSearchResults } = useAdminBlogList({
+    search: linkSearch,
+    status: "published",
+    category: "",
+    page: 1,
+    pageSize: 8,
+  });
 
   // Populate from existing post
   useEffect(() => {
@@ -367,6 +385,33 @@ export default function BlogEditor() {
     }
   };
 
+  const insertMarkdownLink = useCallback((linkText: string, url: string) => {
+    const link = `[${linkText}](${url})`;
+    const pos = cursorPosRef.current;
+    const newContent = content.substring(0, pos) + link + content.substring(pos);
+    setContent(newContent);
+    setLinkPopoverOpen(false);
+    setLinkSearch("");
+    setCustomLinkText("");
+    setCustomLinkUrl("");
+    // Restore focus after insert
+    setTimeout(() => {
+      const ta = textareaRef.current;
+      if (ta) {
+        ta.focus();
+        const newPos = pos + link.length;
+        ta.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
+  }, [content]);
+
+  const handleLinkPopoverOpen = (open: boolean) => {
+    if (open) {
+      cursorPosRef.current = textareaRef.current?.selectionStart ?? content.length;
+    }
+    setLinkPopoverOpen(open);
+  };
+
   const isSaving = createPost.isPending || updatePost.isPending;
   const stats = getContentStats(content);
   const seoScore = useMemo(() => getSeoScore({
@@ -504,8 +549,92 @@ export default function BlogEditor() {
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || "*No content yet...*"}</ReactMarkdown>
                 </div>
               ) : (
-                <Textarea placeholder="Write your article in Markdown..." value={content} onChange={(e) => setContent(e.target.value)}
-                  className="min-h-[400px] font-mono text-sm bg-background/50 border-border/50 resize-y" />
+                <>
+                  {/* Markdown Toolbar */}
+                  <div className="flex items-center gap-1 border border-border/30 rounded-md p-1 bg-background/30">
+                    <Popover open={linkPopoverOpen} onOpenChange={handleLinkPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-xs">
+                          <Link2 className="h-3.5 w-3.5" /> Insert Link
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0" align="start">
+                        <Tabs defaultValue="internal" className="w-full">
+                          <TabsList className="w-full rounded-b-none">
+                            <TabsTrigger value="internal" className="flex-1">Blog Posts</TabsTrigger>
+                            <TabsTrigger value="custom" className="flex-1">Custom URL</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="internal" className="p-3 space-y-2 mt-0">
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                              <Input
+                                placeholder="Search articles..."
+                                value={linkSearch}
+                                onChange={(e) => setLinkSearch(e.target.value)}
+                                className="pl-8 h-8 text-sm bg-background/50"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="max-h-48 overflow-y-auto space-y-0.5">
+                              {linkSearchResults?.data?.length ? (
+                                linkSearchResults.data
+                                  .filter((p) => p.id !== id)
+                                  .map((post) => (
+                                    <button
+                                      key={post.id}
+                                      className="w-full text-left px-2 py-1.5 rounded-sm text-sm hover:bg-accent hover:text-accent-foreground transition-colors truncate"
+                                      onClick={() => insertMarkdownLink(post.title, `/blog/${post.slug}`)}
+                                    >
+                                      {post.title}
+                                    </button>
+                                  ))
+                              ) : (
+                                <p className="text-xs text-muted-foreground text-center py-3">
+                                  {linkSearch ? "No articles found" : "Type to search articles"}
+                                </p>
+                              )}
+                            </div>
+                          </TabsContent>
+                          <TabsContent value="custom" className="p-3 space-y-3 mt-0">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">Link Text</Label>
+                              <Input
+                                placeholder="Click here"
+                                value={customLinkText}
+                                onChange={(e) => setCustomLinkText(e.target.value)}
+                                className="h-8 text-sm bg-background/50"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">URL</Label>
+                              <Input
+                                placeholder="https://..."
+                                value={customLinkUrl}
+                                onChange={(e) => setCustomLinkUrl(e.target.value)}
+                                className="h-8 text-sm bg-background/50"
+                              />
+                            </div>
+                            <Button
+                              size="sm"
+                              className="w-full h-8 text-xs"
+                              disabled={!customLinkText || !customLinkUrl}
+                              onClick={() => insertMarkdownLink(customLinkText, customLinkUrl)}
+                            >
+                              Insert Link
+                            </Button>
+                          </TabsContent>
+                        </Tabs>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <Textarea
+                    ref={textareaRef}
+                    placeholder="Write your article in Markdown..."
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="min-h-[400px] font-mono text-sm bg-background/50 border-border/50 resize-y"
+                  />
+                </>
               )}
               {/* Stats bar with SEO indicators */}
               <div className="flex flex-wrap gap-4 text-xs border-t border-border/30 pt-2">
