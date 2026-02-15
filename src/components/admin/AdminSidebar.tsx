@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { SidebarBranding } from "./sidebar/SidebarBranding";
 import { SidebarNavGroup } from "./sidebar/SidebarNavGroup";
-import { mainNavItems, systemNavItems } from "./sidebar/sidebarNavItems";
+import { overviewNavItems, userNavItems, financeNavItems, contentNavItems, insightsNavItems, systemNavItems } from "./sidebar/sidebarNavItems";
 
 interface AdminSidebarProps {
   onSignOut: () => void;
@@ -30,8 +30,12 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
       <Separator className="mx-4 w-auto bg-sidebar-border/50" />
 
       <SidebarContent className="px-2 py-4">
-        <SidebarNavGroup label="Main Menu" items={mainNavItems} />
-        <SidebarNavGroup label="System" items={systemNavItems} className="mt-4" />
+        <SidebarNavGroup label="Overview" items={overviewNavItems} />
+        <SidebarNavGroup label="User Management" items={userNavItems} className="mt-2" />
+        <SidebarNavGroup label="Finance" items={financeNavItems} className="mt-2" />
+        <SidebarNavGroup label="Content" items={contentNavItems} className="mt-2" />
+        <SidebarNavGroup label="Insights" items={insightsNavItems} className="mt-2" />
+        <SidebarNavGroup label="System" items={systemNavItems} className="mt-2" />
       </SidebarContent>
 
       <SidebarFooter className="p-4">
