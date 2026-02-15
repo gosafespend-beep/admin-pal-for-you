@@ -1,38 +1,83 @@
 
 
-# Add Internal Links to Blog Editor
+# Comprehensive Internal Linking Plan for Blog Articles
 
 ## Overview
 
-Add a toolbar feature to the markdown editor that lets you search for and insert links to other blog articles directly. Instead of manually typing markdown links, you'll get a searchable dropdown of existing posts and insert them with one click.
+Add cross-links between all 4 existing blog articles wherever topics naturally overlap, and link to the Go Safe Spend app tools where relevant. This will be done by updating the `content` field of each article in the database via an edge function (same approach used previously for external links).
 
-## How It Works
+## Article Inventory
 
-1. A new "Insert Link" button appears above the content textarea
-2. Clicking it opens a popover with a search field
-3. As you type, it searches your existing blog posts by title
-4. Clicking a result inserts a markdown link at the cursor position: `[Article Title](/blog/article-slug)`
-5. You can also insert a custom URL link with custom text
+| # | Title | Slug | Category |
+|---|-------|------|----------|
+| 1 | How to Build a Budget That Actually Works in 2026 | `build-budget-that-works-2026` | Budgeting |
+| 2 | How to Save Money Fast on a Low Income in 2026 | `how-to-save-money-fast-on-a-low-income-2026-practical-guide` | Saving |
+| 3 | How to Build a 6-Month Emergency Fund in 2026 | `how-to-build-a-6-month-emergency-fund-in-2026` | Budgeting |
+| 4 | How to Stop Overspending (Without Feeling Deprived) | `how-to-stop-overspending-without-feeling-deprived` | Saving |
+
+## Link Map: What Gets Linked Where
+
+### Article 1: Budget That Works
+**Internal links to add:**
+- Where it mentions "emergency fund" (Step 4 goals section) -- link to Article 3
+- Where it mentions "lifestyle creep" / overspending (Common Mistakes section) -- link to Article 4
+- Where it mentions saving / savings goals -- link to Article 2
+- Where it mentions "Tools vs Spreadsheets" section -- link to Go Safe Spend app (`https://app.gosafespend.com`)
+
+### Article 2: Save Money Fast on Low Income
+**Internal links to add:**
+- Where it mentions budgeting ("Budgeting on a low income") -- link to Article 1
+- Where it mentions "Build an Emergency Fund Fast" (Step 6) -- link to Article 3
+- Where it mentions "Stop Overspending at the Source" (Step 7) -- link to Article 4
+- Where it mentions tracking income/expenses (final CTA) -- link to Go Safe Spend app
+- Where it mentions "Track Net Worth Monthly" (Step 10) -- link to Go Safe Spend app
+
+### Article 3: 6-Month Emergency Fund
+**Internal links to add:**
+- Where it mentions calculating expenses / budgeting -- link to Article 1
+- Where it mentions "low income" savings (Section "What If You're on a Low Income?") -- link to Article 2
+- Where it mentions reducing expenses / subscription cuts (Step 6) -- link to Article 4
+- Where it mentions tracking progress monthly (Step 10) -- link to Go Safe Spend app
+
+### Article 4: Stop Overspending
+**Internal links to add:**
+- Where it mentions budgeting / budget with flexibility (Step 7) -- link to Article 1
+- Where it mentions emergency fund (Step 7, financial priorities) -- link to Article 3
+- Where it mentions saving on a low income (FAQ Q1) -- link to Article 2
+- Where it mentions "Tools and Resources" (Step 8) -- link to Go Safe Spend app
+- Where it mentions tracking spending / visualization dashboards -- link to Go Safe Spend app
+
+## App Tool Links
+
+Where articles mention budgeting tools, expense tracking, net worth tracking, or similar features, link to `https://app.gosafespend.com` as the recommended tool.
+
+## Implementation Approach
+
+1. Create a temporary edge function (`admin-blog-bulk-update`) that accepts an array of `{ id, content }` objects and updates each article using the service role key
+2. Prepare all 4 updated article contents with internal links inserted as markdown: `[link text](/blog/slug)` for internal posts and `[link text](https://app.gosafespend.com)` for app references
+3. Deploy, execute the update, verify, then delete the temporary function
+
+## Expected Link Count
+
+- Roughly 4-5 internal cross-links per article
+- 1-2 app tool links per article
+- Total: approximately 20-25 new internal/app links across all 4 articles
 
 ## Technical Details
 
-### File: `src/pages/admin/BlogEditor.tsx`
+### Temporary Edge Function: `supabase/functions/admin-blog-bulk-update/index.ts`
 
-- Add a markdown toolbar row above the textarea with an "Insert Link" button (using the existing `Link2` icon already imported)
-- The button opens a Popover containing:
-  - A search input to filter existing blog posts
-  - A scrollable list of matching posts (fetched from the existing `useAdminBlogList` hook)
-  - A "Custom URL" tab for external links with text + URL fields
-- On selection, insert `[title](/blog/slug)` at the current cursor position in the textarea
-- Use a ref on the textarea to track cursor position (`selectionStart`/`selectionEnd`)
+- Accepts POST with JSON body `{ updates: [{ id: string, content: string }] }`
+- Uses `SUPABASE_SERVICE_ROLE_KEY` to bypass RLS
+- Updates `blog_posts.content` for each provided ID
+- Deleted after successful execution
 
-### No Backend Changes Needed
+### No Frontend Changes
 
-The existing `useAdminBlogList` hook already supports search filtering -- it will be reused with a debounced search term to fetch matching posts.
-
-### Files Changed
+All changes are content-level database updates. The existing blog editor and markdown renderer already support markdown links.
 
 | File | Change |
 |------|--------|
-| `src/pages/admin/BlogEditor.tsx` | Add link insertion toolbar with internal post search popover above the content textarea |
+| `supabase/functions/admin-blog-bulk-update/index.ts` | Temporary edge function to batch-update article content (created then deleted) |
+| Database: `blog_posts` | Content field updated for all 4 articles with internal cross-links and app links |
 
