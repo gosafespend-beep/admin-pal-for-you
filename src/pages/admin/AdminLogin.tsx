@@ -78,11 +78,11 @@ export default function AdminLogin() {
           <div className="relative">
             <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/30 to-primary/10 blur-xl animate-pulse-subtle" />
             <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-card via-card to-card/80 border border-primary/20 shadow-glow">
-              <img src={logo} alt="Go Safe Spend" className="h-16 w-16 object-contain" width={64} height={64} loading="eager" />
+              <img src={logo} alt="Safe Spend" className="h-16 w-16 object-contain" width={64} height={64} loading="eager" />
             </div>
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Go Safe Spend</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Safe Spend</h1>
             <div className="flex items-center justify-center gap-2 text-muted-foreground">
               <Sparkles className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium">Admin Portal</span>
