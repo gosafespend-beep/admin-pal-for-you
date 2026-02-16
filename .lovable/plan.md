@@ -1,83 +1,35 @@
 
 
-# Comprehensive Internal Linking Plan for Blog Articles
+# Fix Branding: "Go Safe Spend" to "Safe Spend"
 
-## Overview
+## Problem
+The app is incorrectly referred to as "Go Safe Spend" throughout the codebase and all 26 blog articles in the database. The correct branding is **Safe Spend**. The domain `https://app.gosafespend.com` is correct and does not change.
 
-Add cross-links between all 4 existing blog articles wherever topics naturally overlap, and link to the Go Safe Spend app tools where relevant. This will be done by updating the `content` field of each article in the database via an edge function (same approach used previously for external links).
+## Changes
 
-## Article Inventory
+### 1. Frontend Code Updates (3 files)
 
-| # | Title | Slug | Category |
-|---|-------|------|----------|
-| 1 | How to Build a Budget That Actually Works in 2026 | `build-budget-that-works-2026` | Budgeting |
-| 2 | How to Save Money Fast on a Low Income in 2026 | `how-to-save-money-fast-on-a-low-income-2026-practical-guide` | Saving |
-| 3 | How to Build a 6-Month Emergency Fund in 2026 | `how-to-build-a-6-month-emergency-fund-in-2026` | Budgeting |
-| 4 | How to Stop Overspending (Without Feeling Deprived) | `how-to-stop-overspending-without-feeling-deprived` | Saving |
+| File | What changes |
+|------|-------------|
+| `src/components/admin/sidebar/SidebarBranding.tsx` | Change alt text and display name from "Go Safe Spend" to "Safe Spend" |
+| `src/pages/admin/AdminLogin.tsx` | Change alt text and heading from "Go Safe Spend" to "Safe Spend" |
+| `src/index.css` | Update comment from "Go Safe Spend" to "Safe Spend" |
 
-## Link Map: What Gets Linked Where
+### 2. Database Content Update (26 blog articles)
 
-### Article 1: Budget That Works
-**Internal links to add:**
-- Where it mentions "emergency fund" (Step 4 goals section) -- link to Article 3
-- Where it mentions "lifestyle creep" / overspending (Common Mistakes section) -- link to Article 4
-- Where it mentions saving / savings goals -- link to Article 2
-- Where it mentions "Tools vs Spreadsheets" section -- link to Go Safe Spend app (`https://app.gosafespend.com`)
+All 26 articles in the `blog_posts` table contain "Go Safe Spend" in their markdown content. A temporary edge function will perform a bulk find-and-replace:
 
-### Article 2: Save Money Fast on Low Income
-**Internal links to add:**
-- Where it mentions budgeting ("Budgeting on a low income") -- link to Article 1
-- Where it mentions "Build an Emergency Fund Fast" (Step 6) -- link to Article 3
-- Where it mentions "Stop Overspending at the Source" (Step 7) -- link to Article 4
-- Where it mentions tracking income/expenses (final CTA) -- link to Go Safe Spend app
-- Where it mentions "Track Net Worth Monthly" (Step 10) -- link to Go Safe Spend app
+- Replace all instances of `Go Safe Spend` with `Safe Spend` in the `content` field
+- Domain references like `app.gosafespend.com` and `gosafespend.com` remain unchanged
 
-### Article 3: 6-Month Emergency Fund
-**Internal links to add:**
-- Where it mentions calculating expenses / budgeting -- link to Article 1
-- Where it mentions "low income" savings (Section "What If You're on a Low Income?") -- link to Article 2
-- Where it mentions reducing expenses / subscription cuts (Step 6) -- link to Article 4
-- Where it mentions tracking progress monthly (Step 10) -- link to Go Safe Spend app
+**Approach:**
+1. Create temporary edge function `admin-blog-insert` (reusing the established pattern)
+2. Run a single SQL-style update: replace "Go Safe Spend" with "Safe Spend" in content for all 26 posts
+3. Verify the update, then delete the temporary function
 
-### Article 4: Stop Overspending
-**Internal links to add:**
-- Where it mentions budgeting / budget with flexibility (Step 7) -- link to Article 1
-- Where it mentions emergency fund (Step 7, financial priorities) -- link to Article 3
-- Where it mentions saving on a low income (FAQ Q1) -- link to Article 2
-- Where it mentions "Tools and Resources" (Step 8) -- link to Go Safe Spend app
-- Where it mentions tracking spending / visualization dashboards -- link to Go Safe Spend app
+### Summary
 
-## App Tool Links
-
-Where articles mention budgeting tools, expense tracking, net worth tracking, or similar features, link to `https://app.gosafespend.com` as the recommended tool.
-
-## Implementation Approach
-
-1. Create a temporary edge function (`admin-blog-bulk-update`) that accepts an array of `{ id, content }` objects and updates each article using the service role key
-2. Prepare all 4 updated article contents with internal links inserted as markdown: `[link text](/blog/slug)` for internal posts and `[link text](https://app.gosafespend.com)` for app references
-3. Deploy, execute the update, verify, then delete the temporary function
-
-## Expected Link Count
-
-- Roughly 4-5 internal cross-links per article
-- 1-2 app tool links per article
-- Total: approximately 20-25 new internal/app links across all 4 articles
-
-## Technical Details
-
-### Temporary Edge Function: `supabase/functions/admin-blog-bulk-update/index.ts`
-
-- Accepts POST with JSON body `{ updates: [{ id: string, content: string }] }`
-- Uses `SUPABASE_SERVICE_ROLE_KEY` to bypass RLS
-- Updates `blog_posts.content` for each provided ID
-- Deleted after successful execution
-
-### No Frontend Changes
-
-All changes are content-level database updates. The existing blog editor and markdown renderer already support markdown links.
-
-| File | Change |
-|------|--------|
-| `supabase/functions/admin-blog-bulk-update/index.ts` | Temporary edge function to batch-update article content (created then deleted) |
-| Database: `blog_posts` | Content field updated for all 4 articles with internal cross-links and app links |
+- **3 source files** edited (simple text replacements)
+- **26 database rows** updated via temporary edge function
+- No domain or URL changes -- only the brand name text
 
