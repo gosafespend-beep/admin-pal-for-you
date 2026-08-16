@@ -1,10 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { corsFor, forbidden } from "../_shared/guard.ts";
 
 function slugify(text: string): string {
   return text
@@ -78,7 +73,7 @@ function getAdminClient() {
   return createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 }
 
-async function handleGet(req: Request) {
+async function handleGet(req: Request, cors: Record<string, string>) {
   const adminClient = getAdminClient()
   const url = new URL(req.url)
 
@@ -88,7 +83,7 @@ async function handleGet(req: Request) {
     const excludeId = url.searchParams.get('excludeId') || undefined
     const available = await checkSlugUnique(adminClient, checkSlug, excludeId)
     return new Response(JSON.stringify({ available }), {
-      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
@@ -98,7 +93,7 @@ async function handleGet(req: Request) {
     const { data, error } = await adminClient.from('blog_posts').select('*').eq('id', id).single()
     if (error) throw error
     return new Response(JSON.stringify({ data }), {
-      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
@@ -137,18 +132,18 @@ async function handleGet(req: Request) {
 
   return new Response(
     JSON.stringify({ data, total: count || 0, page, pageSize, statusCounts, categories: Array.from(categories) }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
   )
 }
 
-async function handlePost(req: Request) {
+async function handlePost(req: Request, cors: Record<string, string>) {
   const adminClient = getAdminClient()
   const body = await req.json()
 
   const validationError = validatePost(body)
   if (validationError) {
     return new Response(JSON.stringify({ error: validationError }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 400, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
@@ -158,7 +153,7 @@ async function handlePost(req: Request) {
   // Check slug uniqueness
   if (!await checkSlugUnique(adminClient, slug)) {
     return new Response(JSON.stringify({ error: `Slug "${slug}" is already in use` }), {
-      status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 409, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
@@ -198,11 +193,11 @@ async function handlePost(req: Request) {
   if (error) throw error
 
   return new Response(JSON.stringify({ data }), {
-    status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    status: 201, headers: { ...cors, 'Content-Type': 'application/json' }
   })
 }
 
-async function handlePut(req: Request) {
+async function handlePut(req: Request, cors: Record<string, string>) {
   const adminClient = getAdminClient()
   const body = await req.json()
 
@@ -222,7 +217,7 @@ async function handlePut(req: Request) {
       results.push(data)
     }
     return new Response(JSON.stringify({ data: results }), {
-      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
@@ -233,7 +228,7 @@ async function handlePut(req: Request) {
   const validationError = validatePost(updates, true)
   if (validationError) {
     return new Response(JSON.stringify({ error: validationError }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 400, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
@@ -241,7 +236,7 @@ async function handlePut(req: Request) {
   if (updates.slug) {
     if (!await checkSlugUnique(adminClient, updates.slug, id)) {
       return new Response(JSON.stringify({ error: `Slug "${updates.slug}" is already in use` }), {
-        status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 409, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
   }
@@ -264,11 +259,11 @@ async function handlePut(req: Request) {
   if (error) throw error
 
   return new Response(JSON.stringify({ data }), {
-    status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
   })
 }
 
-async function handleDelete(req: Request) {
+async function handleDelete(req: Request, cors: Record<string, string>) {
   const adminClient = getAdminClient()
   const body = await req.json()
 
@@ -277,7 +272,7 @@ async function handleDelete(req: Request) {
     const { error } = await adminClient.from('blog_posts').delete().in('id', body.ids)
     if (error) throw error
     return new Response(JSON.stringify({ success: true, deleted: body.ids.length }), {
-      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
@@ -288,26 +283,26 @@ async function handleDelete(req: Request) {
   if (error) throw error
 
   return new Response(JSON.stringify({ success: true }), {
-    status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
   })
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const cors = corsFor(req);
+  if (!cors) return forbidden();
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
     await verifyAdmin(req)
 
     switch (req.method) {
-      case 'GET': return await handleGet(req)
-      case 'POST': return await handlePost(req)
-      case 'PUT': return await handlePut(req)
-      case 'DELETE': return await handleDelete(req)
+      case 'GET': return await handleGet(req, cors)
+      case 'POST': return await handlePost(req, cors)
+      case 'PUT': return await handlePut(req, cors)
+      case 'DELETE': return await handleDelete(req, cors)
       default:
         return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-          status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          status: 405, headers: { ...cors, 'Content-Type': 'application/json' }
         })
     }
   } catch (error: unknown) {
@@ -315,7 +310,7 @@ Deno.serve(async (req) => {
     const status = errorMessage === 'Access denied' ? 403 : errorMessage === 'No authorization header' ? 401 : 500
     console.error('Error in admin-blog:', error)
     return new Response(JSON.stringify({ error: errorMessage }), {
-      status, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 })

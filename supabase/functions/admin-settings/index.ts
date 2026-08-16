@@ -1,19 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { corsFor, forbidden } from "../_shared/guard.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const cors = corsFor(req);
+  if (!cors) return forbidden();
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'No authorization header' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -26,7 +22,7 @@ Deno.serve(async (req) => {
 
     const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
     if (adminError || !isAdmin) {
-      return new Response(JSON.stringify({ error: 'Access denied' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'Access denied' }), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
@@ -68,7 +64,7 @@ Deno.serve(async (req) => {
       checks.edgeFunctions = { status: 'healthy', latency: 0 }
 
       return new Response(JSON.stringify({ checks, timestamp: new Date().toISOString() }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
@@ -80,7 +76,7 @@ Deno.serve(async (req) => {
         .eq('role', 'admin')
 
       if (rolesErr) {
-        return new Response(JSON.stringify({ error: rolesErr.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: rolesErr.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       // Enrich with user email
@@ -98,21 +94,21 @@ Deno.serve(async (req) => {
       })
 
       return new Response(JSON.stringify({ admins }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
     if (req.method === 'POST' && action === 'add-admin') {
       const { email } = await req.json()
       if (!email) {
-        return new Response(JSON.stringify({ error: 'Email required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: 'Email required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       // Find user by email
       const { data: { users } } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
       const targetUser = (users || []).find(u => u.email === email)
       if (!targetUser) {
-        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       // Check if already admin
@@ -124,7 +120,7 @@ Deno.serve(async (req) => {
         .maybeSingle()
 
       if (existing) {
-        return new Response(JSON.stringify({ error: 'User is already an admin' }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: 'User is already an admin' }), { status: 409, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       const { error: insertErr } = await adminClient
@@ -132,24 +128,24 @@ Deno.serve(async (req) => {
         .insert({ user_id: targetUser.id, role: 'admin' })
 
       if (insertErr) {
-        return new Response(JSON.stringify({ error: insertErr.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: insertErr.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       return new Response(JSON.stringify({ success: true, userId: targetUser.id }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
     if (req.method === 'POST' && action === 'remove-admin') {
       const { userId } = await req.json()
       if (!userId) {
-        return new Response(JSON.stringify({ error: 'userId required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: 'userId required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       // Get current user id from auth
       const { data: { user: currentUser } } = await userClient.auth.getUser()
       if (currentUser?.id === userId) {
-        return new Response(JSON.stringify({ error: 'Cannot remove your own admin role' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: 'Cannot remove your own admin role' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       const { error: deleteErr } = await adminClient
@@ -159,18 +155,18 @@ Deno.serve(async (req) => {
         .eq('role', 'admin')
 
       if (deleteErr) {
-        return new Response(JSON.stringify({ error: deleteErr.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: deleteErr.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       return new Response(JSON.stringify({ success: true }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
-    return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
     console.error('admin-settings error:', error)
-    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
   }
 })

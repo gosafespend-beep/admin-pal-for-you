@@ -1,19 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { corsFor, forbidden } from "../_shared/guard.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const cors = corsFor(req);
+  if (!cors) return forbidden();
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'No authorization header' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -26,7 +22,7 @@ Deno.serve(async (req) => {
 
     const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
     if (adminError || !isAdmin) {
-      return new Response(JSON.stringify({ error: 'Access denied' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'Access denied' }), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
     const { data: { user: adminUser } } = await userClient.auth.getUser()
@@ -41,7 +37,7 @@ Deno.serve(async (req) => {
       const { subscriptionId, action, data: actionData } = body
 
       if (!subscriptionId || !action) {
-        return new Response(JSON.stringify({ error: 'subscriptionId and action are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: 'subscriptionId and action are required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       let updateData: Record<string, unknown> = {}
@@ -51,7 +47,7 @@ Deno.serve(async (req) => {
           const days = actionData?.days || 7
           const { data: sub } = await adminClient.from('subscriptions').select('trial_end').eq('id', subscriptionId).single()
           if (!sub) {
-            return new Response(JSON.stringify({ error: 'Subscription not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+            return new Response(JSON.stringify({ error: 'Subscription not found' }), { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } })
           }
           const currentEnd = new Date(sub.trial_end)
           const newEnd = new Date(currentEnd.getTime() + days * 24 * 60 * 60 * 1000)
@@ -75,12 +71,12 @@ Deno.serve(async (req) => {
           break
         }
         default:
-          return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+          return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       const { error: updateError } = await adminClient.from('subscriptions').update(updateData).eq('id', subscriptionId)
       if (updateError) {
-        return new Response(JSON.stringify({ error: updateError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: updateError.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       // Audit log
@@ -95,7 +91,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ success: true, message: `Subscription ${action} successful` }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
@@ -114,7 +110,7 @@ Deno.serve(async (req) => {
       const { data: subscriptions, error: subErr } = await query
 
       if (subErr) {
-        return new Response(JSON.stringify({ error: subErr.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: subErr.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       const { data: { users } } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
@@ -147,14 +143,14 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ subscriptions: paginated, total, stats }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...cors, 'Content-Type': 'application/json' } })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
     console.error('admin-subscriptions error:', error)
-    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
   }
 })

@@ -1,9 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { corsFor, forbidden } from "../_shared/guard.ts";
 
 async function verifyAdmin(req: Request) {
   const authHeader = req.headers.get('Authorization')
@@ -20,9 +16,9 @@ async function verifyAdmin(req: Request) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const cors = corsFor(req);
+  if (!cors) return forbidden();
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
     await verifyAdmin(req)
@@ -63,7 +59,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ data, total: count || 0, page, pageSize, statusCounts }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -83,7 +79,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ data }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -97,13 +93,13 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
     return new Response(
       JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 405, headers: { ...cors, 'Content-Type': 'application/json' } }
     )
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -111,7 +107,7 @@ Deno.serve(async (req) => {
     console.error('Error in admin-waitlist:', error)
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status, headers: { ...cors, 'Content-Type': 'application/json' } }
     )
   }
 })

@@ -1,9 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { corsFor, forbidden } from "../_shared/guard.ts";
 
 async function getAdminUserId(req: Request) {
   const authHeader = req.headers.get('Authorization')
@@ -25,9 +21,9 @@ async function getAdminUserId(req: Request) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const cors = corsFor(req);
+  if (!cors) return forbidden();
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
     const adminUserId = await getAdminUserId(req)
@@ -60,7 +56,7 @@ Deno.serve(async (req) => {
       }))
 
       return new Response(JSON.stringify({ data: enriched }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
@@ -86,7 +82,7 @@ Deno.serve(async (req) => {
       })
 
       return new Response(JSON.stringify({ data }), {
-        status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 201, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
@@ -98,15 +94,15 @@ Deno.serve(async (req) => {
       if (error) throw error
 
       return new Response(JSON.stringify({ success: true }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...cors, 'Content-Type': 'application/json' } })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
     const status = msg === 'Access denied' ? 403 : msg === 'No authorization header' ? 401 : 500
     console.error('admin-user-notes error:', error)
-    return new Response(JSON.stringify({ error: msg }), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: msg }), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
   }
 })

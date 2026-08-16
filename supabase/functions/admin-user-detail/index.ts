@@ -1,14 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { corsFor, forbidden } from "../_shared/guard.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
+  const cors = corsFor(req);
+  if (!cors) return forbidden();
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
     let userId: string | null = null
@@ -23,7 +19,7 @@ Deno.serve(async (req) => {
     if (!userId) {
       return new Response(
         JSON.stringify({ error: 'userId is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -31,7 +27,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'No authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -46,7 +42,7 @@ Deno.serve(async (req) => {
     if (adminError || !isAdmin) {
       return new Response(
         JSON.stringify({ error: 'Access denied' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -56,7 +52,7 @@ Deno.serve(async (req) => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'User not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -130,14 +126,14 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify(response),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
     )
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error('Error in admin-user-detail:', error)
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
     )
   }
 })
