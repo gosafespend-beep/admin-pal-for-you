@@ -171,6 +171,80 @@ export default function Subscriptions() {
         </div>
       )}
 
+      {/* Entitlement health */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="glass-card">
+          <CardContent className="p-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              <h2 className="font-semibold text-foreground">Entitlement Health</h2>
+            </div>
+            {!data?.entitlementHealth?.length ? (
+              <p className="text-sm text-muted-foreground">No entitlement issues detected.</p>
+            ) : (
+              <div className="space-y-2">
+                {data.entitlementHealth.map((c) => (
+                  <div key={c.check_name} className="flex items-start justify-between gap-3 p-3 rounded-lg bg-card/50 border border-border/30">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{c.check_name}</p>
+                      <p className="text-xs text-muted-foreground">{c.detail}</p>
+                    </div>
+                    <Badge className={
+                      c.severity === "error" ? "bg-destructive/10 text-destructive border-destructive/20"
+                        : c.severity === "warn" ? "bg-warning/10 text-warning border-warning/20"
+                          : "bg-primary/10 text-primary border-primary/20"
+                    }>{c.affected}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardContent className="p-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-purple" />
+              <h2 className="font-semibold text-foreground">RevenueCat Entitlements</h2>
+            </div>
+            {!data?.entitlements?.length ? (
+              <p className="text-sm text-muted-foreground">No store entitlements recorded yet.</p>
+            ) : (
+              <div className="max-h-64 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border/30">
+                      <TableHead>User</TableHead>
+                      <TableHead>Entitlement</TableHead>
+                      <TableHead>Store</TableHead>
+                      <TableHead>Expires</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.entitlements.map((e, i) => (
+                      <TableRow key={`${e.user_id}-${e.entitlement}-${i}`} className="border-border/30">
+                        <TableCell className="text-xs">{e.userEmail}</TableCell>
+                        <TableCell className="text-xs">
+                          <Badge className={e.is_active ? "bg-primary/10 text-primary border-primary/20" : "bg-muted text-muted-foreground border-border"}>
+                            {e.entitlement}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{e.store || "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {e.expires_at ? format(new Date(e.expires_at), "MMM d, yyyy") : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+
+
       {/* Filters */}
       <Card className="glass-card">
         <CardContent className="p-4">
