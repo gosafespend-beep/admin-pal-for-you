@@ -33,7 +33,7 @@ const BASE_HEADERS = {
     "x-supabase-client-runtime",
     "x-supabase-client-runtime-version",
   ].join(", "),
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Max-Age": "3600",
   Vary: "Origin",
 };
