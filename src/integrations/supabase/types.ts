@@ -2931,6 +2931,33 @@ export type Database = {
           count: number
         }[]
       }
+      admin_data_health: {
+        Args: never
+        Returns: {
+          last_record: string
+          row_count: number
+          source: string
+        }[]
+      }
+      admin_event_funnel: { Args: never; Returns: Json }
+      admin_event_timeseries: {
+        Args: { p_days?: number }
+        Returns: {
+          count: number
+          day: string
+          event: string
+        }[]
+      }
+      admin_feature_usage: {
+        Args: never
+        Returns: {
+          event: string
+          last_seen: string
+          total: number
+          unique_sessions: number
+          unique_users: number
+        }[]
+      }
       admin_monthly_transaction_stats: {
         Args: never
         Returns: {

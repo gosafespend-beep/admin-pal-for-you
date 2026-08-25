@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { logAudit } from "../_shared/audit.ts";
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
@@ -26,6 +27,8 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+    const { data: { user: currentAdmin } } = await userClient.auth.getUser()
+    const currentAdminId = currentAdmin?.id ?? null
     const url = new URL(req.url)
     const action = url.searchParams.get('action') || 'health'
 
@@ -131,6 +134,14 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: insertErr.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
+      await logAudit(adminClient, {
+        adminUserId: currentAdminId,
+        action: 'admin_role_grant',
+        targetType: 'user_role',
+        targetId: targetUser.id,
+        details: { email, role: 'admin' },
+      })
+
       return new Response(JSON.stringify({ success: true, userId: targetUser.id }), {
         status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
@@ -142,9 +153,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'userId required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
-      // Get current user id from auth
-      const { data: { user: currentUser } } = await userClient.auth.getUser()
-      if (currentUser?.id === userId) {
+      if (currentAdminId === userId) {
         return new Response(JSON.stringify({ error: 'Cannot remove your own admin role' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
@@ -157,6 +166,14 @@ Deno.serve(async (req) => {
       if (deleteErr) {
         return new Response(JSON.stringify({ error: deleteErr.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
+
+      await logAudit(adminClient, {
+        adminUserId: currentAdminId,
+        action: 'admin_role_revoke',
+        targetType: 'user_role',
+        targetId: userId,
+        details: { role: 'admin' },
+      })
 
       return new Response(JSON.stringify({ success: true }), {
         status: 200, headers: { ...cors, 'Content-Type': 'application/json' }

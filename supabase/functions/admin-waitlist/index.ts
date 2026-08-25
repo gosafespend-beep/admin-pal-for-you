@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { getAdminUserId, logAudit } from "../_shared/audit.ts";
 
 async function verifyAdmin(req: Request) {
   const authHeader = req.headers.get('Authorization')
@@ -77,6 +78,14 @@ Deno.serve(async (req) => {
         .single()
       if (error) throw error
 
+      await logAudit(adminClient, {
+        adminUserId: await getAdminUserId(req),
+        action: `waitlist_status_${status}`,
+        targetType: 'waitlist',
+        targetId: id,
+        details: { email: data?.email, status },
+      })
+
       return new Response(
         JSON.stringify({ data }),
         { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
@@ -88,8 +97,17 @@ Deno.serve(async (req) => {
       const { id } = body
       if (!id) throw new Error('id required')
 
+      const { data: entry } = await adminClient.from('waitlist').select('email').eq('id', id).maybeSingle()
       const { error } = await adminClient.from('waitlist').delete().eq('id', id)
       if (error) throw error
+
+      await logAudit(adminClient, {
+        adminUserId: await getAdminUserId(req),
+        action: 'waitlist_delete',
+        targetType: 'waitlist',
+        targetId: id,
+        details: { email: entry?.email },
+      })
 
       return new Response(
         JSON.stringify({ success: true }),

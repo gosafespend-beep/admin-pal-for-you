@@ -24,10 +24,29 @@ interface SubscriptionStats {
   expired: number;
 }
 
+export interface EntitlementHealthCheck {
+  check_name: string;
+  severity: string;
+  affected: number;
+  detail: string;
+}
+
+export interface RevenueCatEntitlement {
+  user_id: string;
+  userEmail: string;
+  entitlement: string;
+  store: string | null;
+  status: string;
+  is_active: boolean;
+  expires_at: string | null;
+}
+
 interface SubscriptionResponse {
   subscriptions: Subscription[];
   total: number;
   stats: SubscriptionStats;
+  entitlementHealth: EntitlementHealthCheck[];
+  entitlements: RevenueCatEntitlement[];
 }
 
 interface Filters {

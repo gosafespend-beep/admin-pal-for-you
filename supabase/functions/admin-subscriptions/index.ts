@@ -113,7 +113,13 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: subErr.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
-      const { data: { users } } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+      const [{ data: { users } }, healthResult, entitlementsResult] = await Promise.all([
+        adminClient.auth.admin.listUsers({ perPage: 1000 }),
+        adminClient.rpc('entitlement_health'),
+        adminClient.from('revenuecat_entitlements').select('*').order('updated_at', { ascending: false }).limit(200),
+      ])
+      if (healthResult.error) console.error('entitlement_health:', healthResult.error.message)
+      if (entitlementsResult.error) console.error('revenuecat_entitlements:', entitlementsResult.error.message)
       const userMap = new Map((users || []).map(u => [u.id, u]))
 
       let enriched = (subscriptions || []).map(sub => {
@@ -142,7 +148,16 @@ Deno.serve(async (req) => {
         expired: (subscriptions || []).filter(s => s.status === 'expired').length,
       }
 
-      return new Response(JSON.stringify({ subscriptions: paginated, total, stats }), {
+      const entitlements = (entitlementsResult.data || []).map((e: Record<string, unknown>) => ({
+        ...e,
+        userEmail: userMap.get(e.user_id as string)?.email || 'Unknown',
+      }))
+
+      const entitlementHealth = (healthResult.data || []) as Array<{
+        check_name: string; severity: string; affected: number; detail: string
+      }>
+
+      return new Response(JSON.stringify({ subscriptions: paginated, total, stats, entitlementHealth, entitlements }), {
         status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
