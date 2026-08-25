@@ -82,14 +82,14 @@ export interface AnalyticsData {
   };
 }
 
-export function useAdminAnalytics() {
+export function useAdminAnalytics(days = 30) {
   return useQuery({
-    queryKey: ["admin", "analytics"],
+    queryKey: ["admin", "analytics", days],
     queryFn: async (): Promise<AnalyticsData> => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not authenticated");
 
-      const response = await supabase.functions.invoke("admin-analytics", {
+      const response = await supabase.functions.invoke(`admin-analytics?days=${days}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
