@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
 
       const [{ data: { users } }, healthResult, entitlementsResult] = await Promise.all([
         adminClient.auth.admin.listUsers({ perPage: 1000 }),
-        userClient.rpc('entitlement_health'),
+        adminClient.rpc('entitlement_health'),
         adminClient.from('revenuecat_entitlements').select('*').order('updated_at', { ascending: false }).limit(200),
       ])
       if (healthResult.error) console.error('entitlement_health:', healthResult.error.message)
