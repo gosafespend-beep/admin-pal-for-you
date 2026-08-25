@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { getAdminUserId, logAudit } from "../_shared/audit.ts";
 
 function slugify(text: string): string {
   return text
@@ -192,6 +193,14 @@ async function handlePost(req: Request, cors: Record<string, string>) {
   const { data, error } = await adminClient.from('blog_posts').insert(insertData).select().single()
   if (error) throw error
 
+  await logAudit(adminClient, {
+    adminUserId: await getAdminUserId(req),
+    action: is_published ? 'blog_post_create_published' : 'blog_post_create_draft',
+    targetType: 'blog_post',
+    targetId: data.id,
+    details: { title, slug },
+  })
+
   return new Response(JSON.stringify({ data }), {
     status: 201, headers: { ...cors, 'Content-Type': 'application/json' }
   })
@@ -216,6 +225,14 @@ async function handlePut(req: Request, cors: Record<string, string>) {
       if (error) throw error
       results.push(data)
     }
+    await logAudit(adminClient, {
+      adminUserId: await getAdminUserId(req),
+      action: 'blog_post_bulk_update',
+      targetType: 'blog_post',
+      targetId: ids.join(','),
+      details: { count: ids.length, updates },
+    })
+
     return new Response(JSON.stringify({ data: results }), {
       status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
     })
@@ -258,6 +275,14 @@ async function handlePut(req: Request, cors: Record<string, string>) {
   const { data, error } = await adminClient.from('blog_posts').update(updates).eq('id', id).select().single()
   if (error) throw error
 
+  await logAudit(adminClient, {
+    adminUserId: await getAdminUserId(req),
+    action: updates.is_published === true ? 'blog_post_publish' : updates.is_published === false ? 'blog_post_unpublish' : 'blog_post_update',
+    targetType: 'blog_post',
+    targetId: id,
+    details: { fields: Object.keys(updates), title: data?.title, slug: data?.slug },
+  })
+
   return new Response(JSON.stringify({ data }), {
     status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
   })
@@ -271,6 +296,13 @@ async function handleDelete(req: Request, cors: Record<string, string>) {
   if (body.ids && Array.isArray(body.ids)) {
     const { error } = await adminClient.from('blog_posts').delete().in('id', body.ids)
     if (error) throw error
+    await logAudit(adminClient, {
+      adminUserId: await getAdminUserId(req),
+      action: 'blog_post_bulk_delete',
+      targetType: 'blog_post',
+      targetId: body.ids.join(','),
+      details: { count: body.ids.length },
+    })
     return new Response(JSON.stringify({ success: true, deleted: body.ids.length }), {
       status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
     })
@@ -279,8 +311,17 @@ async function handleDelete(req: Request, cors: Record<string, string>) {
   // Single delete
   const { id } = body
   if (!id) throw new Error('id is required')
+  const { data: existingPost } = await adminClient.from('blog_posts').select('title, slug').eq('id', id).maybeSingle()
   const { error } = await adminClient.from('blog_posts').delete().eq('id', id)
   if (error) throw error
+
+  await logAudit(adminClient, {
+    adminUserId: await getAdminUserId(req),
+    action: 'blog_post_delete',
+    targetType: 'blog_post',
+    targetId: id,
+    details: { title: existingPost?.title, slug: existingPost?.slug },
+  })
 
   return new Response(JSON.stringify({ success: true }), {
     status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
