@@ -168,6 +168,8 @@ export default function BlogEditor() {
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState("");
   const [featuredImage, setFeaturedImage] = useState("");
+  const [featuredImageFailed, setFeaturedImageFailed] = useState(false);
+  useEffect(() => { setFeaturedImageFailed(false); }, [featuredImage]);
   const [authorName, setAuthorName] = useState("Safe Spend Team");
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
@@ -870,8 +872,21 @@ export default function BlogEditor() {
               </div>
               {featuredImage && (
                 <div className="rounded-lg overflow-hidden border border-border/30">
-                  <img src={featuredImage} alt="Featured" className="w-full h-32 object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  {featuredImageFailed ? (
+                    <div className="h-32 flex flex-col items-center justify-center gap-1 text-muted-foreground text-xs px-3 text-center">
+                      <Image className="h-5 w-5" />
+                      <span>Image could not be loaded from this link</span>
+                    </div>
+                  ) : (
+                    <img
+                      key={featuredImage}
+                      src={featuredImage}
+                      alt="Featured"
+                      loading="lazy"
+                      className="w-full h-32 object-cover"
+                      onError={() => setFeaturedImageFailed(true)}
+                    />
+                  )}
                 </div>
               )}
             </CardContent>
