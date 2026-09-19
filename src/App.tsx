@@ -18,6 +18,7 @@ const Subscriptions = lazy(() => import("./pages/admin/Subscriptions"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const Analytics = lazy(() => import("./pages/admin/Analytics"));
 const AuditLog = lazy(() => import("./pages/admin/AuditLog"));
+const Ebook = lazy(() => import("./pages/admin/Ebook"));
 const BlogPosts = lazy(() => import("./pages/admin/BlogPosts"));
 const BlogEditor = lazy(() => import("./pages/admin/BlogEditor"));
 
@@ -63,6 +64,7 @@ const router = createBrowserRouter([
           { path: "subscriptions", element: <Subscriptions /> },
           { path: "analytics", element: <Analytics /> },
           { path: "audit-log", element: <AuditLog /> },
+          { path: "ebook", element: <Ebook /> },
           { path: "blog", element: <BlogPosts /> },
           { path: "blog/new", element: <BlogEditor /> },
           { path: "blog/editor/:id", element: <BlogEditor /> },

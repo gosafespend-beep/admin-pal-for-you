@@ -8,6 +8,7 @@ import {
   BarChart3,
   Shield,
   FileText,
+  BookOpen,
 } from "lucide-react";
 
 export const overviewNavItems = [
@@ -30,6 +31,7 @@ export const contentNavItems = [
 
 export const insightsNavItems = [
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  { title: "Ebook", url: "/ebook", icon: BookOpen },
   { title: "Audit Log", url: "/audit-log", icon: Shield },
 ];
 
