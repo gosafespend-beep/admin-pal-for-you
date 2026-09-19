@@ -169,6 +169,7 @@ export default function BlogEditor() {
   const [tags, setTags] = useState("");
   const [featuredImage, setFeaturedImage] = useState("");
   const [featuredImageFailed, setFeaturedImageFailed] = useState(false);
+  useEffect(() => { setFeaturedImageFailed(false); }, [featuredImage]);
   const [authorName, setAuthorName] = useState("Safe Spend Team");
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
