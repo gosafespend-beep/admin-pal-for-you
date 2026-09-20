@@ -101,6 +101,54 @@ Deno.serve(async (req) => {
       })
     }
 
+    if (req.method === 'GET' && action === 'blog-images') {
+      const { data, error } = await adminClient
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'blog_default_featured_image')
+        .maybeSingle()
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
+
+      const defaultFeaturedImage = typeof data?.value === 'string' ? data.value : ''
+      return new Response(JSON.stringify({ defaultFeaturedImage }), {
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
+      })
+    }
+
+    if (req.method === 'POST' && action === 'blog-images') {
+      const { defaultFeaturedImage } = await req.json()
+      if (typeof defaultFeaturedImage !== 'string' || !/^https:\/\/.+/.test(defaultFeaturedImage) || defaultFeaturedImage.length > 2048) {
+        return new Response(JSON.stringify({ error: 'A valid HTTPS image URL is required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
+
+      const { error } = await adminClient
+        .from('app_settings')
+        .upsert({
+          key: 'blog_default_featured_image',
+          value: defaultFeaturedImage,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'key' })
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
+
+      await logAudit(adminClient, {
+        adminUserId: currentAdminId,
+        action: 'blog_default_image_update',
+        targetType: 'app_setting',
+        targetId: 'blog_default_featured_image',
+        details: { defaultFeaturedImage },
+      })
+
+      return new Response(JSON.stringify({ success: true, defaultFeaturedImage }), {
+        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
+      })
+    }
+
     if (req.method === 'POST' && action === 'add-admin') {
       const { email } = await req.json()
       if (!email) {

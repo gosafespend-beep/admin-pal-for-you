@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Settings as SettingsIcon,
   Shield,
@@ -16,6 +16,8 @@ import {
   XCircle,
   Loader2,
   AlertTriangle,
+  Image,
+  Upload,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +36,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useSystemHealth, useAdminList, useAddAdmin, useRemoveAdmin } from "@/hooks/admin/useAdminSettings";
+import { useSystemHealth, useAdminList, useAddAdmin, useRemoveAdmin, useBlogImageSettings, useUpdateBlogImageSettings } from "@/hooks/admin/useAdminSettings";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { BlogImage } from "@/components/admin/BlogImage";
 
 function HealthStatusIcon({ status }: { status: string }) {
   if (status === "healthy") return <CheckCircle className="h-4 w-4 text-primary" />;
@@ -65,7 +69,54 @@ export default function Settings() {
   const { data: adminData, isLoading: adminsLoading } = useAdminList();
   const addAdmin = useAddAdmin();
   const removeAdmin = useRemoveAdmin();
+  const { data: blogImageSettings, isLoading: blogImageLoading } = useBlogImageSettings();
+  const updateBlogImageSettings = useUpdateBlogImageSettings();
   const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [defaultBlogImage, setDefaultBlogImage] = useState("");
+  const [uploadingBlogImage, setUploadingBlogImage] = useState(false);
+  const blogImageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (blogImageSettings) setDefaultBlogImage(blogImageSettings.defaultFeaturedImage);
+  }, [blogImageSettings]);
+
+  const handleBlogImageUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Choose an image file.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Image too large", description: "The maximum size is 5 MB.", variant: "destructive" });
+      return;
+    }
+
+    setUploadingBlogImage(true);
+    try {
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const filePath = `defaults/blog-default-${Date.now()}.${extension}`;
+      const { error } = await supabase.storage.from("blog-images").upload(filePath, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from("blog-images").getPublicUrl(filePath);
+      setDefaultBlogImage(data.publicUrl);
+    } catch (error: unknown) {
+      toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Could not upload image", variant: "destructive" });
+    } finally {
+      setUploadingBlogImage(false);
+    }
+  };
+
+  const handleSaveBlogImage = async () => {
+    if (!/^https:\/\/.+/.test(defaultBlogImage)) {
+      toast({ title: "Invalid image link", description: "Enter a valid HTTPS image link.", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateBlogImageSettings.mutateAsync(defaultBlogImage);
+      toast({ title: "Default image saved", description: "Blog posts now use this image when their own image is unavailable." });
+    } catch (error: unknown) {
+      toast({ title: "Save failed", description: error instanceof Error ? error.message : "Could not save image", variant: "destructive" });
+    }
+  };
 
   const handleAddAdmin = async () => {
     if (!newAdminEmail.trim()) return;
@@ -246,6 +297,67 @@ export default function Settings() {
             {!adminsLoading && (adminData?.admins || []).length === 0 && (
               <p className="text-sm text-muted-foreground py-4 text-center">No admins found.</p>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Blog defaults */}
+      <Card className="glass-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Image className="h-5 w-5 text-primary" />
+            Blog Default Image
+          </CardTitle>
+          <CardDescription>Used when an article has no featured image or its image cannot load</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="default-blog-image">Image link</Label>
+                <Input
+                  id="default-blog-image"
+                  type="url"
+                  placeholder="https://..."
+                  value={defaultBlogImage}
+                  onChange={(event) => setDefaultBlogImage(event.target.value)}
+                  disabled={blogImageLoading}
+                  className="bg-card/50"
+                />
+              </div>
+              <input
+                ref={blogImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) handleBlogImageUpload(file);
+                  event.target.value = "";
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => blogImageInputRef.current?.click()} disabled={uploadingBlogImage}>
+                  {uploadingBlogImage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  Choose image
+                </Button>
+                <Button
+                  onClick={handleSaveBlogImage}
+                  disabled={blogImageLoading || updateBlogImageSettings.isPending || !defaultBlogImage || defaultBlogImage === blogImageSettings?.defaultFeaturedImage}
+                >
+                  {updateBlogImageSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save default
+                </Button>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-border/50">
+              <BlogImage
+                src={defaultBlogImage}
+                alt="Default blog image preview"
+                className="h-36 w-full object-cover"
+                placeholderClassName="h-36"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
