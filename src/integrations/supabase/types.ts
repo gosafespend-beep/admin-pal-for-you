@@ -3135,6 +3135,7 @@ export type Database = {
         }
         Returns: string
       }
+      get_public_blog_settings: { Args: never; Returns: Json }
       get_waitlist_count: { Args: never; Returns: number }
       has_role: {
         Args: {
