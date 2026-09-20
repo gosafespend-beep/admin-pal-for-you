@@ -35,6 +35,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminBlogPost, useAdminBlogList, useBlogActions, useSlugCheck, BlogPost } from "@/hooks/admin/useAdminBlog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BlogImage } from "@/components/admin/BlogImage";
+import { useBlogImageSettings } from "@/hooks/admin/useAdminSettings";
 
 const CATEGORIES = ["Budgeting", "Saving", "Investing", "Debt", "Tools", "News"];
 const AUTOSAVE_KEY = "blog-editor-autosave";
@@ -168,8 +170,6 @@ export default function BlogEditor() {
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState("");
   const [featuredImage, setFeaturedImage] = useState("");
-  const [featuredImageFailed, setFeaturedImageFailed] = useState(false);
-  useEffect(() => { setFeaturedImageFailed(false); }, [featuredImage]);
   const [authorName, setAuthorName] = useState("Safe Spend Team");
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
@@ -211,6 +211,7 @@ export default function BlogEditor() {
   const cursorPosRef = useRef<{ start: number; end: number; selectedText: string }>({ start: 0, end: 0, selectedText: "" });
 
   const { data: slugAvailable, isLoading: slugChecking } = useSlugCheck(slug, id);
+  const { data: blogImageSettings } = useBlogImageSettings();
 
   // Fetch blog posts for internal link search
   const { data: linkSearchResults } = useAdminBlogList({
@@ -870,24 +871,17 @@ export default function BlogEditor() {
                   </div>
                 )}
               </div>
-              {featuredImage && (
-                <div className="rounded-lg overflow-hidden border border-border/30">
-                  {featuredImageFailed ? (
-                    <div className="h-32 flex flex-col items-center justify-center gap-1 text-muted-foreground text-xs px-3 text-center">
-                      <Image className="h-5 w-5" />
-                      <span>Image could not be loaded from this link</span>
-                    </div>
-                  ) : (
-                    <img
-                      key={featuredImage}
-                      src={featuredImage}
-                      alt="Featured"
-                      loading="lazy"
-                      className="w-full h-32 object-cover"
-                      onError={() => setFeaturedImageFailed(true)}
-                    />
-                  )}
-                </div>
+              <div className="rounded-lg overflow-hidden border border-border/30">
+                <BlogImage
+                  src={featuredImage}
+                  fallbackSrc={blogImageSettings?.defaultFeaturedImage}
+                  alt={title ? `${title} featured image` : "Article featured image"}
+                  className="w-full h-32 object-cover"
+                  placeholderClassName="h-32"
+                />
+              </div>
+              {!featuredImage && blogImageSettings?.defaultFeaturedImage && (
+                <p className="text-xs text-muted-foreground">Using the default blog image.</p>
               )}
             </CardContent>
           </Card>

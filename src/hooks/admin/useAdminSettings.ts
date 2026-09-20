@@ -19,6 +19,10 @@ interface AdminUser {
   roleAssignedAt: string;
 }
 
+export interface BlogImageSettings {
+  defaultFeaturedImage: string;
+}
+
 async function invokeSettings(action: string, method = "GET", body?: Record<string, unknown>) {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
@@ -69,5 +73,27 @@ export function useRemoveAdmin() {
   return useMutation({
     mutationFn: (userId: string) => invokeSettings("remove-admin", "POST", { userId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "admins"] }),
+  });
+}
+
+export function useBlogImageSettings() {
+  return useQuery<BlogImageSettings>({
+    queryKey: ["admin", "settings", "blog-images"],
+    queryFn: async () => {
+      const response = await invokeSettings("blog-images");
+      return { defaultFeaturedImage: response.defaultFeaturedImage || "" };
+    },
+    staleTime: 60000,
+  });
+}
+
+export function useUpdateBlogImageSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (defaultFeaturedImage: string) =>
+      invokeSettings("blog-images", "POST", { defaultFeaturedImage }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "settings", "blog-images"] });
+    },
   });
 }
