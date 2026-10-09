@@ -47,3 +47,14 @@ Order for Phase 1: apply 03 → merge → deploy functions → check Users/Analy
 | 5 | `05_user_360.sql` | **Before** deploying the Phase 2 `admin-users`, `admin-user-detail` and `admin-user-actions` functions | Replaces `admin_list_users` with a version that adds plan / stage / platform filters (old callers keep working: new parameters default to empty) and adds `admin_user_360`. Service role only. |
 
 Order for slice 1: apply 05 -> merge -> deploy the three functions -> check a user page and the Users filters.
+
+## Phase 2, slice 2 (billing hub)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 6 | `06_billing_overview.sql` | **Before** deploying `admin-billing` | Adds `admin_billing_overview()` (service role only). Additive. |
+
+Order: apply 06 -> merge -> deploy `admin-billing` (new), `admin-subscriptions`, `admin-stats`.
+Note: cancelling or reactivating a Paystack subscription now calls Paystack's API
+(`/subscription/disable` and `/enable`) using `PAYSTACK_SECRET_KEY`. That path has not been
+exercised against a real paying customer; try it on a test subscription first.

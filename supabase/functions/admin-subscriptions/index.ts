@@ -1,8 +1,27 @@
 import { corsFor, forbidden } from "../_shared/guard.ts";
 import { audited } from "../_shared/audit.ts";
+import { effectiveStatus, paystackRequest } from "../_shared/billingRules.ts";
 import { clampInt, errorResponse, HttpError, isUuid, json, listAllUsers, requireAdmin, selectAll } from "../_shared/http.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
+
+/** Tells Paystack to stop (disable) or resume (enable) charging, and fails loudly if it refuses. */
+async function callPaystack(action: "cancel" | "reactivate", code: string | null, token: string | null): Promise<void> {
+  const built = paystackRequest(action, code, token);
+  if (!built.ok) throw new HttpError(409, built.error);
+  const key = Deno.env.get("PAYSTACK_SECRET_KEY");
+  if (!key) throw new HttpError(503, "Paystack is not configured on the server");
+  const res = await fetch(`https://api.paystack.co/subscription/${built.request.path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify(built.request.body),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body?.status) {
+    console.error("[admin-subscriptions] paystack refused", res.status, body?.message);
+    throw new HttpError(502, `Paystack refused the request: ${body?.message ?? res.status}`);
+  }
+}
 const MIN_REASON = 10;
 
 Deno.serve(async (req) => {
@@ -30,15 +49,17 @@ Deno.serve(async (req) => {
 
       const { data: sub } = await adminClient
         .from("subscriptions")
-        .select("id, user_id, status, trial_end, cancelled_at, current_period_end, paystack_subscription_code")
+        .select("id, user_id, status, trial_end, cancelled_at, current_period_end, paystack_subscription_code, paystack_email_token")
         .eq("id", subscriptionId)
         .maybeSingle();
       if (!sub) throw new HttpError(404, "Subscription not found");
 
       const now = new Date();
       let updateData: Record<string, unknown> = {};
+      const viaPaystack = Boolean(sub.paystack_subscription_code);
       const details: Record<string, unknown> = {
         reason,
+        provider: viaPaystack && (action === "cancel" || action === "reactivate") ? "paystack" : "local",
         before: { status: sub.status, trial_end: sub.trial_end, current_period_end: sub.current_period_end },
       };
 
@@ -53,10 +74,10 @@ Deno.serve(async (req) => {
           .eq("is_active", true)
           .neq("period_type", "trial")
           .limit(1);
-        if (sub.paystack_subscription_code || (store?.length ?? 0) > 0) {
+        if ((store?.length ?? 0) > 0) {
           throw new HttpError(
             409,
-            "This subscription is billed by a payment provider. Cancel or restore it with the provider; changing it here would not stop or start billing",
+            "This person pays through the App Store or Google Play. Only they can cancel or restore it there; changing it here would not stop or start billing",
           );
         }
       }
@@ -75,13 +96,17 @@ Deno.serve(async (req) => {
           updateData = { status: "cancelled", cancelled_at: now.toISOString(), updated_at: now.toISOString() };
           break;
         case "reactivate":
-          updateData = {
-            status: "active",
-            cancelled_at: null,
-            current_period_start: now.toISOString(),
-            current_period_end: new Date(now.getTime() + 30 * DAY).toISOString(),
-            updated_at: now.toISOString(),
-          };
+          // Paystack-billed rows keep their real billing dates (the webhook
+          // maintains them); only a row with no provider gets a granted month.
+          updateData = viaPaystack
+            ? { status: "active", cancelled_at: null, updated_at: now.toISOString() }
+            : {
+                status: "active",
+                cancelled_at: null,
+                current_period_start: now.toISOString(),
+                current_period_end: new Date(now.getTime() + 30 * DAY).toISOString(),
+                updated_at: now.toISOString(),
+              };
           break;
         default:
           throw new HttpError(400, "Unknown action");
@@ -99,12 +124,17 @@ Deno.serve(async (req) => {
           meta: ctx.meta,
         },
         async () => {
+          // Provider first: if Paystack refuses, nothing changes here either.
+          if (viaPaystack && (action === "cancel" || action === "reactivate")) {
+            await callPaystack(action, sub.paystack_subscription_code, sub.paystack_email_token);
+          }
           const { error } = await adminClient.from("subscriptions").update(updateData).eq("id", subscriptionId);
           if (error) throw error;
         },
       );
 
-      return json({ success: true, message: `Subscription ${action.replace("_", " ")} successful` }, 200, cors);
+      const where = viaPaystack && (action === "cancel" || action === "reactivate") ? " at Paystack and here" : "";
+      return json({ success: true, message: `Subscription ${action.replace("_", " ")} successful${where}` }, 200, cors);
     }
 
     if (req.method === "GET") {
@@ -124,8 +154,13 @@ Deno.serve(async (req) => {
       const userMap = new Map(users.map((u) => [u.id, u]));
 
       subscriptions.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-      let enriched = subscriptions.map((sub) => ({
+      let enriched = subscriptions.map(({ paystack_email_token: _token, paystack_customer_code: _customer, ...sub }) => ({
         ...sub,
+        // Shown and filtered by what is true now: a "trialing" row whose trial
+        // ended months ago is expired. The stored value stays in rawStatus.
+        rawStatus: sub.status,
+        status: effectiveStatus(sub.status, sub.trial_end),
+        billedBy: sub.paystack_subscription_code ? "paystack" : null,
         userEmail: userMap.get(sub.user_id)?.email || "Unknown",
         userCreatedAt: userMap.get(sub.user_id)?.created_at,
       }));
@@ -133,7 +168,7 @@ Deno.serve(async (req) => {
       if (search) enriched = enriched.filter((s) => s.userEmail.toLowerCase().includes(search));
 
       const offset = (page - 1) * pageSize;
-      const count = (status: string) => subscriptions.filter((s) => s.status === status).length;
+      const count = (status: string) => subscriptions.filter((s) => effectiveStatus(s.status, s.trial_end) === status).length;
 
       return json(
         {

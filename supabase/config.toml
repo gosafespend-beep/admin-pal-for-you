@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.admin-blog]
 verify_jwt = false
+
+[functions.admin-billing]
+verify_jwt = false

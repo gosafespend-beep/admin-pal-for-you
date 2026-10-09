@@ -1,5 +1,6 @@
 import { corsFor, forbidden } from "../_shared/guard.ts";
 import { errorResponse, json, requireAdmin } from "../_shared/http.ts";
+import { effectiveStatus } from "../_shared/billingRules.ts";
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
@@ -32,7 +33,11 @@ Deno.serve(async (req) => {
 
     const overview = overviewResult.data || {}
     const engagement = engagementResult.data || {}
-    const subscriptions = subscriptionsResult.data || []
+    // Status as it is now, not as last written: ended trials still say "trialing".
+    const subscriptions = (subscriptionsResult.data || []).map((s: { status: string; trial_end: string | null }) => ({
+      ...s,
+      status: effectiveStatus(s.status, s.trial_end),
+    }))
 
     const monthlyData = (monthlyResult.data || []).map((m: Record<string, unknown>) => ({
       month: m.month_key,
