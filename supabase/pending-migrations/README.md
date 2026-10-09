@@ -39,3 +39,11 @@ Test with a report-only header first:
 | 4 | `04_revoke_session_server_only.sql` | After the Phase 1 frontend and `admin-user-actions` are live | Browser sessions can no longer call `revoke_user_session` directly; revoking goes through the audited function |
 
 Order for Phase 1: apply 03 → merge → deploy functions → check Users/Analytics/session revoke → apply 04.
+
+## Phase 2 migrations
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 5 | `05_user_360.sql` | **Before** deploying the Phase 2 `admin-users`, `admin-user-detail` and `admin-user-actions` functions | Replaces `admin_list_users` with a version that adds plan / stage / platform filters (old callers keep working: new parameters default to empty) and adds `admin_user_360`. Service role only. |
+
+Order for slice 1: apply 05 -> merge -> deploy the three functions -> check a user page and the Users filters.

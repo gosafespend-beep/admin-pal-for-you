@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
     };
 
     let message: string;
+    let revealed: unknown;
 
     switch (decision.action) {
       case "suspend": {
@@ -180,6 +181,41 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "reveal_transactions": {
+        const rows = await audited(
+          ctx.adminClient,
+          entry,
+          async () => {
+            const [expenses, incomes] = await Promise.all([
+              ctx.adminClient.from("expenses").select("id, amount, category, date, note, account_id").eq("user_id", userId).order("date", { ascending: false }).limit(20),
+              ctx.adminClient.from("incomes").select("id, amount, source, category, date, note, account_id").eq("user_id", userId).order("date", { ascending: false }).limit(20),
+            ]);
+            if (expenses.error) throw expenses.error;
+            if (incomes.error) throw incomes.error;
+            const merged = ([
+              ...(expenses.data ?? []).map((r: Record<string, unknown>) => ({ ...r, type: "expense" })),
+              ...(incomes.data ?? []).map((r: Record<string, unknown>) => ({ ...r, type: "income" })),
+            ] as Array<Record<string, unknown>>)
+              .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+              .slice(0, 20);
+
+            // Amounts are in the account's own currency; fall back to the person's default.
+            const accountIds = [...new Set(merged.map((r) => r.account_id).filter(Boolean))] as string[];
+            const [accounts, settings] = await Promise.all([
+              accountIds.length ? ctx.adminClient.from("accounts").select("id, currency").in("id", accountIds) : { data: [] },
+              ctx.adminClient.from("user_settings").select("currency").eq("user_id", userId).maybeSingle(),
+            ]);
+            const byAccount = new Map((accounts.data ?? []).map((a: { id: string; currency: string }) => [a.id, a.currency]));
+            const fallback = settings.data?.currency || "USD";
+            return merged.map((r) => ({ ...r, currency: (r.account_id && byAccount.get(r.account_id as string)) || fallback }));
+          },
+          (r) => ({ rows_returned: r.length }),
+        );
+        revealed = rows;
+        message = `Showing the ${rows.length} most recent transactions`;
+        break;
+      }
+
       case "resend_confirmation": {
         await audited(ctx.adminClient, entry, async () => {
           const { error } = await ctx.adminClient.auth.resend({ type: "signup", email: target.user.email! });
@@ -190,7 +226,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ success: true, message }, 200, cors);
+    return json({ success: true, message, ...(revealed !== undefined ? { data: revealed } : {}) }, 200, cors);
   } catch (error) {
     return errorResponse(error, cors, requestId, "admin-user-actions");
   }

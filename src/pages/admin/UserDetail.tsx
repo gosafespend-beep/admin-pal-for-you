@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useAdminUserDetail, useAdminUserActions, useRevokeSession, type UserAction } from "@/hooks/admin/useAdminUserDetail";
 import { UserNotes } from "@/components/admin/UserNotes";
+import { OverviewTab, ActivityTab, StoreEntitlements, MaskedTransactions } from "@/components/admin/UserOverview";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,7 +122,7 @@ export default function UserDetail() {
     );
   }
 
-  const { user, activitySummary, recentTransactions, subscription, sessions } = data;
+  const { user, activitySummary, overview, subscription, sessions } = data;
   const isSuspended = user.banned_until && new Date(user.banned_until) > new Date();
   const isSelf = currentAdmin?.id === user.id;
   // The server refuses these as well; hiding them just avoids dead ends.
@@ -325,8 +326,10 @@ export default function UserDetail() {
       </div>
 
       {/* Tabs: Transactions, Subscription, Sessions */}
-      <Tabs defaultValue="transactions" className="space-y-4">
-        <TabsList className="bg-muted/50 p-1">
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList className="bg-muted/50 p-1 flex-wrap h-auto">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-background">Overview</TabsTrigger>
+          <TabsTrigger value="activity" className="data-[state=active]:bg-background">Activity</TabsTrigger>
           <TabsTrigger value="transactions" className="data-[state=active]:bg-background">
             Transactions ({activitySummary.totalTransactions})
           </TabsTrigger>
@@ -338,48 +341,19 @@ export default function UserDetail() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Transactions Tab */}
+        {/* Overview Tab */}
+        <TabsContent value="overview">
+          <OverviewTab overview={overview} />
+        </TabsContent>
+
+        {/* Activity Tab */}
+        <TabsContent value="activity">
+          <ActivityTab overview={overview} />
+        </TabsContent>
+
+        {/* Transactions Tab (masked by default) */}
         <TabsContent value="transactions">
-          <Card className="glass-card overflow-hidden">
-            <CardHeader>
-              <CardTitle>Recent Transactions</CardTitle>
-              <CardDescription>Last 10 transactions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {recentTransactions.length === 0 ? (
-                <EmptyState icon={Wallet} text="No transactions yet" />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-border/30">
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentTransactions.map((tx) => (
-                      <TableRow key={`${tx.type}-${tx.id}`} className="border-border/30">
-                        <TableCell className="text-muted-foreground">{format(new Date(tx.date), "MMM d, yyyy")}</TableCell>
-                        <TableCell>
-                          <Badge className={cn(
-                            "capitalize",
-                            tx.type === "income" && "bg-primary/10 text-primary border-primary/20",
-                            tx.type === "expense" && "bg-pink/10 text-pink border-pink/20",
-                          )}>{tx.type}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{tx.category || tx.source || "—"}</TableCell>
-                        <TableCell className={cn("text-right font-medium", tx.type === "income" && "text-primary", tx.type === "expense" && "text-pink")}>
-                          {tx.type === "income" ? "+" : "-"}{formatCurrency(tx.amount, user.currency)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          {id && <MaskedTransactions userId={id} totals={{ expenses: activitySummary.totalExpenses, incomes: activitySummary.totalIncomes }} />}
         </TabsContent>
 
         {/* Subscription Tab */}
@@ -389,6 +363,9 @@ export default function UserDetail() {
               <CardTitle>Subscription Details</CardTitle>
             </CardHeader>
             <CardContent>
+              <h3 className="mb-3 text-sm font-medium text-muted-foreground">App Store / Google Play</h3>
+              <StoreEntitlements overview={overview} />
+              <h3 className="mb-3 mt-6 text-sm font-medium text-muted-foreground">Trial and web subscription</h3>
               {!subscription ? (
                 <EmptyState icon={BarChart3} text="No subscription found" />
               ) : (

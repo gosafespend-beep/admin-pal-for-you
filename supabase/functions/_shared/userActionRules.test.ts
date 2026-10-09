@@ -101,6 +101,14 @@ describe("revoke_session", () => {
   });
 });
 
+describe("reveal_transactions", () => {
+  it("is only allowed with a written reason", () => {
+    expect(denied({ action: "reveal_transactions", reason: "" }).status).toBe(400);
+    expect(denied({ action: "reveal_transactions", reason: "too short" }).status).toBe(400);
+    expect(decideUserAction({ ...base, action: "reveal_transactions", reason: "Support ticket 4411: duplicate charge" }).ok).toBe(true);
+  });
+});
+
 describe("unknown actions", () => {
   it("are rejected", () => {
     expect(denied({ action: "ban_forever" }).status).toBe(400);

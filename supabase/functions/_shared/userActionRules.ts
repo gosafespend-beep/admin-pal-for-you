@@ -18,7 +18,8 @@ export type UserAction =
   | "promote"
   | "demote"
   | "resend_confirmation"
-  | "revoke_session";
+  | "revoke_session"
+  | "reveal_transactions";
 
 export const USER_ACTIONS: readonly UserAction[] = [
   "suspend",
@@ -28,10 +29,11 @@ export const USER_ACTIONS: readonly UserAction[] = [
   "demote",
   "resend_confirmation",
   "revoke_session",
+  "reveal_transactions",
 ];
 
 /** Actions that change access or destroy data: a written reason is mandatory. */
-const REASON_REQUIRED: ReadonlySet<UserAction> = new Set(["suspend", "delete", "promote", "demote"]);
+const REASON_REQUIRED: ReadonlySet<UserAction> = new Set(["suspend", "delete", "promote", "demote", "reveal_transactions"]);
 
 export const MIN_REASON_LENGTH = 10;
 export const MAX_REASON_LENGTH = 500;
@@ -132,6 +134,11 @@ export function decideUserAction(f: ActionFacts): ActionDecision {
       if (typeof sessionId !== "string" || !UUID_RE.test(sessionId)) return deny(400, "A valid sessionId is required");
       return { ok: true, action, reason, sessionId };
     }
+
+    case "reveal_transactions":
+      // Individual amounts and notes are personal data; the reason (already
+      // required above) is what ends up in the audit log next to the view.
+      return { ok: true, action, reason };
 
     case "unsuspend":
       return { ok: true, action, reason };

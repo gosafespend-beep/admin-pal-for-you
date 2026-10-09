@@ -58,6 +58,8 @@ function UserRowSkeleton() {
         </div>
       </TableCell>
       <TableCell><div className="h-5 w-16 shimmer rounded-full" /></TableCell>
+      <TableCell><div className="h-5 w-14 shimmer rounded-full" /></TableCell>
+      <TableCell><div className="h-4 w-20 shimmer rounded" /></TableCell>
       <TableCell><div className="h-4 w-20 shimmer rounded" /></TableCell>
       <TableCell><div className="h-4 w-24 shimmer rounded" /></TableCell>
       <TableCell><div className="h-4 w-20 shimmer rounded" /></TableCell>
@@ -66,7 +68,17 @@ function UserRowSkeleton() {
   );
 }
 
-const EXPORT_COLUMNS = ["email", "display_name", "is_admin", "email_confirmed_at", "created_at", "last_sign_in_at"];
+const EXPORT_COLUMNS = ["email", "display_name", "is_admin", "plan", "stage", "platforms", "email_confirmed_at", "created_at", "last_sign_in_at"];
+
+const PLAN_STYLE: Record<string, string> = {
+  paid: "bg-primary/10 text-primary border-primary/20",
+  trial: "bg-info/10 text-info border-info/20",
+  granted: "bg-purple/10 text-purple border-purple/20",
+  free: "bg-muted text-muted-foreground border-border",
+};
+const STAGE_LABEL: Record<string, string> = {
+  signed_up: "Signed up", onboarded: "Onboarded", activated: "Activated", paying: "Paying",
+};
 
 export default function Users() {
   const navigate = useNavigate();
@@ -75,6 +87,9 @@ export default function Users() {
     role: "",
     verified: "",
     status: "",
+    platform: "",
+    plan: "",
+    stage: "",
     page: 1,
     pageSize: 20,
     sortBy: "created_at",
@@ -170,7 +185,7 @@ export default function Users() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="glass-card border-l-4 border-l-primary hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, role: "", verified: "", status: "", page: 1 }))}>
+        <Card className="glass-card border-l-4 border-l-primary hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, role: "", verified: "", status: "", platform: "", plan: "", stage: "", page: 1 }))}>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary">
@@ -274,6 +289,40 @@ export default function Users() {
                 <SelectItem value="suspended">Suspended</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filters.platform || "all"} onValueChange={(v) => setFilters(f => ({ ...f, platform: v === "all" ? "" : v, page: 1 }))}>
+              <SelectTrigger className="w-full md:w-[130px] bg-background/50 border-border/50">
+                <SelectValue placeholder="App" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any app</SelectItem>
+                <SelectItem value="android">Android</SelectItem>
+                <SelectItem value="ios">iOS</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filters.plan || "all"} onValueChange={(v) => setFilters(f => ({ ...f, plan: v === "all" ? "" : v, page: 1 }))}>
+              <SelectTrigger className="w-full md:w-[130px] bg-background/50 border-border/50">
+                <SelectValue placeholder="Plan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any plan</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="trial">Trial</SelectItem>
+                <SelectItem value="granted">Granted</SelectItem>
+                <SelectItem value="free">Free</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filters.stage || "all"} onValueChange={(v) => setFilters(f => ({ ...f, stage: v === "all" ? "" : v, page: 1 }))}>
+              <SelectTrigger className="w-full md:w-[150px] bg-background/50 border-border/50">
+                <SelectValue placeholder="Stage" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any stage</SelectItem>
+                <SelectItem value="signed_up">Signed up</SelectItem>
+                <SelectItem value="onboarded">Onboarded</SelectItem>
+                <SelectItem value="activated">Activated</SelectItem>
+                <SelectItem value="paying">Paying</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={String(filters.pageSize)} onValueChange={(v) => setFilters(f => ({ ...f, pageSize: parseInt(v), page: 1 }))}>
               <SelectTrigger className="w-full md:w-[100px] bg-background/50 border-border/50">
                 <SelectValue />
@@ -347,6 +396,8 @@ export default function Users() {
                 <TableHead className="text-muted-foreground">User</TableHead>
                 <TableHead className="text-muted-foreground">Role</TableHead>
                 <TableHead className="text-muted-foreground">Status</TableHead>
+                <TableHead className="text-muted-foreground">Plan</TableHead>
+                <TableHead className="text-muted-foreground">Stage / apps</TableHead>
                 <TableHead className="text-muted-foreground">Joined</TableHead>
                 <TableHead className="text-muted-foreground">Last Active</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
@@ -357,7 +408,7 @@ export default function Users() {
                 Array.from({ length: 5 }).map((_, i) => <UserRowSkeleton key={i} />)
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center">
+                  <TableCell colSpan={9} className="h-32 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <UserX className="h-8 w-8 text-muted-foreground/50" />
                       <p className="text-muted-foreground">No users found</p>
@@ -494,6 +545,13 @@ function UserRow({ user, selected, onSelect }: { user: AdminUser; selected: bool
             </Badge>
           )}
         </div>
+      </TableCell>
+      <TableCell>
+        <Badge className={cn("border capitalize text-xs", PLAN_STYLE[user.plan] ?? PLAN_STYLE.free)}>{user.plan}</Badge>
+      </TableCell>
+      <TableCell>
+        <p className="text-sm text-foreground">{STAGE_LABEL[user.stage] ?? user.stage}</p>
+        <p className="text-xs text-muted-foreground capitalize">{user.platforms.length ? user.platforms.join(", ") : "no app events"}</p>
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
