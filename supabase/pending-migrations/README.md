@@ -58,3 +58,11 @@ Order: apply 06 -> merge -> deploy `admin-billing` (new), `admin-subscriptions`,
 Note: cancelling or reactivating a Paystack subscription now calls Paystack's API
 (`/subscription/disable` and `/enable`) using `PAYSTACK_SECRET_KEY`. That path has not been
 exercised against a real paying customer; try it on a test subscription first.
+
+## Phase 2, slice 3 (growth metrics)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 7 | `07_growth_metrics.sql` | **Before** deploying `admin-metrics` | Adds `admin_growth_metrics(weeks)` (service role only). Additive. |
+
+Order: apply 07 -> merge -> deploy `admin-metrics` (new).

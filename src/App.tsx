@@ -16,6 +16,7 @@ const Transactions = lazy(() => import("./pages/admin/Transactions"));
 const Waitlist = lazy(() => import("./pages/admin/Waitlist"));
 const Subscriptions = lazy(() => import("./pages/admin/Subscriptions"));
 const Billing = lazy(() => import("./pages/admin/Billing"));
+const Growth = lazy(() => import("./pages/admin/Growth"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const Analytics = lazy(() => import("./pages/admin/Analytics"));
 const AuditLog = lazy(() => import("./pages/admin/AuditLog"));
@@ -78,6 +79,7 @@ const router = createBrowserRouter([
           { path: "transactions", element: <Transactions /> },
           { path: "waitlist", element: <Waitlist /> },
           { path: "billing", element: <Billing /> },
+          { path: "growth", element: <Growth /> },
           { path: "subscriptions", element: <Subscriptions /> },
           { path: "analytics", element: <Analytics /> },
           { path: "audit-log", element: <AuditLog /> },
