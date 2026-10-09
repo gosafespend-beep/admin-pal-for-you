@@ -13,6 +13,7 @@ import {
   TrendingUp,
   ShieldCheck,
   LifeBuoy,
+  Megaphone,
 } from "lucide-react";
 
 export const overviewNavItems = [
@@ -38,6 +39,7 @@ export const contentNavItems = [
 
 export const insightsNavItems = [
   { title: "Growth", url: "/growth", icon: TrendingUp },
+  { title: "Marketing", url: "/marketing", icon: Megaphone },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Ebook", url: "/ebook", icon: BookOpen },
   { title: "Audit Log", url: "/audit-log", icon: Shield },

@@ -84,3 +84,11 @@ Note: the table has no `user_id` column on purpose: `delete_user_data` deletes f
 
 Order: apply 09 -> merge -> deploy `admin-support` (new).
 Note: the starter replies are drafts. Read and edit them on the Support page before using them with customers.
+
+## Phase 3, slice 1 (marketing console)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 10 | `10_marketing_overview.sql` | **Before** deploying `admin-marketing` | Adds `admin_marketing_overview()` (service role only, read-only). Reports on the `sgs_*` marketing system; never reads token values, only expiry dates. Additive. |
+
+Order: merge PR #7 first (this branch is stacked on it) -> apply 10 -> merge -> deploy `admin-marketing` (new).
