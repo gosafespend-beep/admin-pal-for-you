@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.admin-marketing]
 verify_jwt = false
+
+[functions.admin-alerts]
+verify_jwt = false
+
+[functions.ops-monitor]
+verify_jwt = false
