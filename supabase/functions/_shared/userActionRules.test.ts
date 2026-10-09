@@ -90,6 +90,17 @@ describe("promote and demote", () => {
   });
 });
 
+describe("revoke_session", () => {
+  const sessionId = "0f8fad5b-d9cb-469f-a165-70867728950e";
+
+  it("needs a valid session id but no written reason", () => {
+    const r = decideUserAction({ ...base, action: "revoke_session", reason: undefined, data: { sessionId } });
+    expect(r).toMatchObject({ ok: true, sessionId });
+    expect(denied({ action: "revoke_session", data: { sessionId: "nope" } }).status).toBe(400);
+    expect(denied({ action: "revoke_session", data: null }).status).toBe(400);
+  });
+});
+
 describe("unknown actions", () => {
   it("are rejected", () => {
     expect(denied({ action: "ban_forever" }).status).toBe(400);

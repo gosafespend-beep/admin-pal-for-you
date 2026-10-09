@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { invokeAdmin } from "@/lib/adminApi";
 import { toast } from "@/hooks/use-toast";
 
@@ -114,15 +113,12 @@ export function useRevokeSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ userId, sessionId }: { userId: string; sessionId: string }) => {
-      const { data, error } = await supabase.rpc('revoke_user_session', {
-        p_user_id: userId,
-        p_session_id: sessionId,
-      });
-
-      if (error) throw new Error(error.message);
-      return data;
-    },
+    // Goes through admin-user-actions so the revoke is audited like every other action.
+    mutationFn: ({ userId, sessionId }: { userId: string; sessionId: string }) =>
+      invokeAdmin<{ message: string }>("admin-user-actions", {
+        method: "POST",
+        body: { userId, action: "revoke_session", data: { sessionId } },
+      }),
     onSuccess: (_, variables) => {
       toast({ title: "Session Revoked", description: "The session has been terminated." });
       queryClient.invalidateQueries({ queryKey: ["admin", "user", variables.userId] });

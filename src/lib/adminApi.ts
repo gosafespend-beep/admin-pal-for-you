@@ -34,18 +34,27 @@ export function withQuery(
   return qs ? `${name}?${qs}` : name;
 }
 
-async function messageFrom(error: unknown): Promise<string> {
+/** An error from an admin function, carrying the HTTP status so callers can decide whether a retry makes sense. */
+export class AdminApiError extends Error {
+  constructor(message: string, public status?: number) {
+    super(message);
+    this.name = "AdminApiError";
+  }
+}
+
+async function toApiError(error: unknown): Promise<AdminApiError> {
   const fallback = error instanceof Error ? error.message : "Request failed";
   const context = (error as { context?: unknown } | null)?.context;
+  const status = typeof (context as Response | undefined)?.status === "number" ? (context as Response).status : undefined;
   if (context && typeof (context as Response).json === "function") {
     try {
       const body = await (context as Response).clone().json();
-      if (body && typeof body.error === "string") return body.error;
+      if (body && typeof body.error === "string") return new AdminApiError(body.error, status);
     } catch {
       /* body was not JSON; keep the generic message */
     }
   }
-  return fallback;
+  return new AdminApiError(fallback, status);
 }
 
 export async function invokeAdmin<T = unknown>(
@@ -59,7 +68,7 @@ export async function invokeAdmin<T = unknown>(
       body: options.body as Record<string, unknown> | undefined,
     },
   );
-  if (error) throw new Error(await messageFrom(error));
+  if (error) throw await toApiError(error);
   if (data && typeof data === "object" && "error" in data && (data as { error?: unknown }).error) {
     throw new Error(String((data as { error: unknown }).error));
   }

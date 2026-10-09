@@ -1,4 +1,5 @@
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { logReadOnce } from "../_shared/audit.ts";
 import { clampInt, errorResponse, HttpError, isUuid, json, orSearchTerm, requireAdmin, type AnyClient } from "../_shared/http.ts";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -51,6 +52,17 @@ Deno.serve(async (req) => {
     if (startDate && !DATE_RE.test(startDate)) throw new HttpError(400, "startDate must be YYYY-MM-DD");
     if (endDate && !DATE_RE.test(endDate)) throw new HttpError(400, "endDate must be YYYY-MM-DD");
     if (userId && !isUuid(userId)) throw new HttpError(400, "userId must be a valid id");
+
+    // Looking at one person's transactions is a targeted read of personal data.
+    if (userId) {
+      await logReadOnce(adminClient, {
+        adminUserId: ctx.adminId,
+        action: "view_user_transactions",
+        targetType: "user",
+        targetId: userId,
+        meta: ctx.meta,
+      });
+    }
 
     const results: Record<string, unknown> = {};
 

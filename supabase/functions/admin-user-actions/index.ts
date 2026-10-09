@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
         reason: decision.reason || undefined,
         target_email: target.user.email,
         duration_days: decision.suspendDays,
+        session_id: decision.sessionId,
       },
       meta: ctx.meta,
     };
@@ -163,6 +164,19 @@ Deno.serve(async (req) => {
           if (error) throw error;
         });
         message = "Admin privileges removed";
+        break;
+      }
+
+      case "revoke_session": {
+        await audited(ctx.adminClient, entry, async () => {
+          const { data: revoked, error } = await ctx.adminClient.rpc("revoke_user_session", {
+            p_user_id: userId,
+            p_session_id: decision.sessionId,
+          });
+          if (error) throw error;
+          if (!revoked) throw new HttpError(404, "Session not found");
+        });
+        message = "Session signed out";
         break;
       }
 

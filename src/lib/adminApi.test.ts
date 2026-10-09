@@ -13,3 +13,13 @@ describe("withQuery", () => {
     expect(withQuery("admin-stats", {})).toBe("admin-stats");
   });
 });
+
+describe("AdminApiError", () => {
+  it("carries the HTTP status so retries can be decided", async () => {
+    const { AdminApiError } = await import("./adminApi");
+    const error = new AdminApiError("Access denied", 403);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.status).toBe(403);
+    expect(error.message).toBe("Access denied");
+  });
+});
