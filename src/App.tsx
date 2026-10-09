@@ -22,7 +22,22 @@ const Ebook = lazy(() => import("./pages/admin/Ebook"));
 const BlogPosts = lazy(() => import("./pages/admin/BlogPosts"));
 const BlogEditor = lazy(() => import("./pages/admin/BlogEditor"));
 
-const queryClient = new QueryClient();
+// Client errors (400-499) mean the request itself is wrong or not allowed;
+// retrying cannot fix them and only delays the error message. Network and 5xx
+// failures get two quiet retries. Reads are not re-fetched on window focus, so
+// switching tabs doesn't hit the database six times.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        const status = (error as { status?: number } | null)?.status;
+        if (status !== undefined && status >= 400 && status < 500) return false;
+        return failureCount < 2;
+      },
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const PageLoader = () => (
   <div className="flex items-center justify-center h-full min-h-[200px]">

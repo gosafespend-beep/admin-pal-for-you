@@ -1,5 +1,5 @@
 import { corsFor, forbidden } from "../_shared/guard.ts";
-import { clampInt, errorResponse, json, listAllUsers, requireAdmin, selectAll } from "../_shared/http.ts";
+import { clampInt, errorResponse, json, requireAdmin } from "../_shared/http.ts";
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
@@ -17,123 +17,24 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const trendDays = clampInt(url.searchParams.get("days"), 30, 1, 365);
 
-    // Users and transactions are read in full (paged), not cut off at the first
-    // 1,000, so the retention figures stay correct as the user base grows.
-    const [
-      users, subscriptions, expenseRows, incomeRows,
-      funnelResult, timeseriesResult, featureUsageResult, dataHealthResult,
-    ] = await Promise.all([
-      listAllUsers(adminClient),
-      selectAll(adminClient, "subscriptions", "*"),
-      selectAll(adminClient, "expenses", "user_id"),
-      selectAll(adminClient, "incomes", "user_id"),
+    // Retention, churn risk, top users, lifecycle and revenue are computed in
+    // SQL (public.admin_analytics_core, migration 03) rather than by reading every
+    // user, expense and income row into the function.
+    const [coreResult, funnelResult, timeseriesResult, featureUsageResult, dataHealthResult] = await Promise.all([
+      adminClient.rpc("admin_analytics_core"),
       userClient.rpc("admin_event_funnel"),
       userClient.rpc("admin_event_timeseries", { p_days: trendDays }),
       userClient.rpc("admin_feature_usage"),
       userClient.rpc("admin_data_health"),
     ]);
-    const expensesResult = { data: expenseRows };
-    const incomesResult = { data: incomeRows };
-
-    if (funnelResult.error) console.error('admin_event_funnel:', funnelResult.error.message)
-    if (timeseriesResult.error) console.error('admin_event_timeseries:', timeseriesResult.error.message)
-    if (featureUsageResult.error) console.error('admin_feature_usage:', featureUsageResult.error.message)
-    if (dataHealthResult.error) console.error('admin_data_health:', dataHealthResult.error.message)
-
-
-    // --- Retention Funnel ---
-    const totalRegistered = users.length
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
-
-    // Users with at least 1 transaction
-    const expenseUserIds = new Set((expensesResult.data).map((e: { user_id: string }) => e.user_id))
-    const incomeUserIds = new Set((incomesResult.data).map((i: { user_id: string }) => i.user_id))
-    const usersWithTransactions = new Set([...expenseUserIds, ...incomeUserIds])
-    
-    const activeIn30d = users.filter((u: { last_sign_in_at: string | null }) =>
-      u.last_sign_in_at && new Date(u.last_sign_in_at) >= thirtyDaysAgo
-    ).length
-
-    const retentionFunnel = {
-      registered: totalRegistered,
-      withTransactions: usersWithTransactions.size,
-      activeIn30d,
-    }
-
-    // --- Churn Risk: active before but not in 14 days ---
-    const churnRiskUsers = users
-      .filter((u: { id: string; last_sign_in_at: string | null; created_at: string }) => {
-        if (!u.last_sign_in_at) return false
-        const lastSignIn = new Date(u.last_sign_in_at)
-        return lastSignIn < fourteenDaysAgo && usersWithTransactions.has(u.id)
-      })
-      .slice(0, 20)
-      .map((u: { id: string; email?: string; last_sign_in_at: string | null; created_at: string }) => {
-        const sub = subscriptions.find((s: { user_id: string }) => s.user_id === u.id)
-        return {
-          id: u.id,
-          email: u.email || 'Unknown',
-          lastActive: u.last_sign_in_at,
-          subscriptionStatus: sub?.status || 'none',
-          joinedAt: u.created_at,
-        }
-      })
-
-    // --- Subscription Lifecycle (last 6 months) ---
-    const subscriptionLifecycle = []
-    for (let i = 5; i >= 0; i--) {
-      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-      const label = monthStart.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-
-      // Count subs that were in each state during this month
-      const active = subscriptions.filter((s: { status: string; created_at: string; current_period_start: string | null }) => {
-        const created = new Date(s.created_at)
-        return created < monthEnd && s.status === 'active'
-      }).length
-      const trialing = subscriptions.filter((s: { status: string; trial_start: string; trial_end: string }) => {
-        const start = new Date(s.trial_start)
-        return start < monthEnd && s.status === 'trialing'
-      }).length
-      const cancelled = subscriptions.filter((s: { status: string; cancelled_at: string | null }) => {
-        if (!s.cancelled_at) return false
-        const cancelDate = new Date(s.cancelled_at)
-        return cancelDate >= monthStart && cancelDate < monthEnd
-      }).length
-
-      subscriptionLifecycle.push({ month: label, active, trialing, cancelled })
-    }
-
-    // --- Top Users by Activity ---
-    const userActivityMap = new Map<string, number>()
-    ;(expensesResult.data).forEach((e: { user_id: string }) => {
-      userActivityMap.set(e.user_id, (userActivityMap.get(e.user_id) || 0) + 1)
-    })
-    ;(incomesResult.data).forEach((i: { user_id: string }) => {
-      userActivityMap.set(i.user_id, (userActivityMap.get(i.user_id) || 0) + 1)
-    })
-
-    const topUsers = Array.from(userActivityMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([userId, txCount]) => {
-        const user = users.find((u: { id: string }) => u.id === userId)
-        const sub = subscriptions.find((s: { user_id: string }) => s.user_id === userId)
-        return {
-          id: userId,
-          email: user?.email || 'Unknown',
-          transactionCount: txCount,
-          lastActive: user?.last_sign_in_at || null,
-          subscriptionStatus: sub?.status || 'none',
-        }
-      })
-
-    // --- Revenue Metrics ---
-    const activeSubs = subscriptions.filter((s: { status: string }) => s.status === 'active').length
-    const totalSubs = subscriptions.length
-    const convertedOrChurned = subscriptions.filter((s: { status: string }) => ['active', 'cancelled', 'expired'].includes(s.status)).length
-    const trialConversionRate = convertedOrChurned > 0 ? Math.round((activeSubs / convertedOrChurned) * 1000) / 10 : 0
+    if (coreResult.error) throw coreResult.error;
+    if (funnelResult.error) console.error("admin_event_funnel:", funnelResult.error.message);
+    if (timeseriesResult.error) console.error("admin_event_timeseries:", timeseriesResult.error.message);
+    if (featureUsageResult.error) console.error("admin_feature_usage:", featureUsageResult.error.message);
+    if (dataHealthResult.error) console.error("admin_data_health:", dataHealthResult.error.message);
+    const core = coreResult.data as {
+      retentionFunnel: unknown; churnRiskUsers: unknown; topUsers: unknown; subscriptionLifecycle: unknown; revenue: unknown;
+    };
 
     // --- Product analytics (from analytics_events) ---
     type TsRow = { day: string; event: string; count: number }
@@ -188,16 +89,12 @@ Deno.serve(async (req) => {
     const analytics = {
       product,
       dataHealth,
-      retentionFunnel,
-      churnRiskUsers,
-      subscriptionLifecycle,
-      topUsers,
-      revenue: {
-        activeSubscriptions: activeSubs,
-        totalSubscriptions: totalSubs,
-        trialConversionRate,
-      },
-    }
+      retentionFunnel: core.retentionFunnel,
+      churnRiskUsers: core.churnRiskUsers,
+      subscriptionLifecycle: core.subscriptionLifecycle,
+      topUsers: core.topUsers,
+      revenue: core.revenue,
+    };
 
     return json(analytics, 200, cors);
   } catch (error) {

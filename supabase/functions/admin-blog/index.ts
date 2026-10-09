@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
 import { getAdminUserId, logAudit } from "../_shared/audit.ts";
+import { errorResponse, HttpError, requireAdmin, type AnyClient } from "../_shared/http.ts";
 
 function slugify(text: string): string {
   return text
@@ -51,23 +52,11 @@ function validatePost(body: Record<string, unknown>, isUpdate = false): string |
   return null
 }
 
-async function checkSlugUnique(adminClient: ReturnType<typeof createClient>, slug: string, excludeId?: string): Promise<boolean> {
+async function checkSlugUnique(adminClient: AnyClient, slug: string, excludeId?: string): Promise<boolean> {
   let q = adminClient.from('blog_posts').select('id').eq('slug', slug)
   if (excludeId) q = q.neq('id', excludeId)
   const { data } = await q.limit(1)
   return !data || data.length === 0
-}
-
-async function verifyAdmin(req: Request) {
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader) throw new Error('No authorization header')
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } }
-  })
-  const { data: isAdmin, error } = await userClient.rpc('is_admin')
-  if (error || !isAdmin) throw new Error('Access denied')
 }
 
 function getAdminClient() {
@@ -213,7 +202,7 @@ async function handlePut(req: Request, cors: Record<string, string>) {
   // Bulk update
   if (body.ids && Array.isArray(body.ids)) {
     const { ids, updates } = body
-    if (!ids.length || !updates) throw new Error('ids and updates are required for bulk operations')
+    if (!ids.length || !updates) throw new HttpError(400, 'ids and updates are required for bulk operations')
     const results = []
     for (const postId of ids) {
       const updateData = { ...updates, updated_at: new Date().toISOString() }
@@ -240,7 +229,7 @@ async function handlePut(req: Request, cors: Record<string, string>) {
 
   // Single update
   const { id, ...updates } = body
-  if (!id) throw new Error('id is required')
+  if (!id) throw new HttpError(400, 'id is required')
 
   const validationError = validatePost(updates, true)
   if (validationError) {
@@ -310,7 +299,7 @@ async function handleDelete(req: Request, cors: Record<string, string>) {
 
   // Single delete
   const { id } = body
-  if (!id) throw new Error('id is required')
+  if (!id) throw new HttpError(400, 'id is required')
   const { data: existingPost } = await adminClient.from('blog_posts').select('title, slug').eq('id', id).maybeSingle()
   const { error } = await adminClient.from('blog_posts').delete().eq('id', id)
   if (error) throw error
@@ -333,8 +322,11 @@ Deno.serve(async (req) => {
   if (!cors) return forbidden();
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let requestId: string | undefined;
   try {
-    await verifyAdmin(req)
+    const ctx = await requireAdmin(req, cors);
+    if (ctx instanceof Response) return ctx;
+    requestId = ctx.meta.requestId;
 
     switch (req.method) {
       case 'GET': return await handleGet(req, cors)
@@ -347,11 +339,6 @@ Deno.serve(async (req) => {
         })
     }
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const status = errorMessage === 'Access denied' ? 403 : errorMessage === 'No authorization header' ? 401 : 500
-    console.error('Error in admin-blog:', error)
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status, headers: { ...cors, 'Content-Type': 'application/json' }
-    })
+    return errorResponse(error, cors, requestId, "admin-blog");
   }
 })

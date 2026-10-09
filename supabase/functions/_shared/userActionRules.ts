@@ -17,7 +17,8 @@ export type UserAction =
   | "delete"
   | "promote"
   | "demote"
-  | "resend_confirmation";
+  | "resend_confirmation"
+  | "revoke_session";
 
 export const USER_ACTIONS: readonly UserAction[] = [
   "suspend",
@@ -26,6 +27,7 @@ export const USER_ACTIONS: readonly UserAction[] = [
   "promote",
   "demote",
   "resend_confirmation",
+  "revoke_session",
 ];
 
 /** Actions that change access or destroy data: a written reason is mandatory. */
@@ -52,7 +54,7 @@ export interface ActionFacts {
 }
 
 export type ActionDecision =
-  | { ok: true; action: UserAction; reason: string; suspendDays?: number }
+  | { ok: true; action: UserAction; reason: string; suspendDays?: number; sessionId?: string }
   | { ok: false; status: number; error: string };
 
 const deny = (status: number, error: string): ActionDecision => ({ ok: false, status, error });
@@ -68,6 +70,8 @@ export function parseSuspendDays(data: unknown): number | null {
   if (!Number.isInteger(days) || days < 1 || days > MAX_SUSPEND_DAYS) return null;
   return days;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function decideUserAction(f: ActionFacts): ActionDecision {
   if (!isUserAction(f.action)) return deny(400, "Unknown action");
@@ -121,6 +125,12 @@ export function decideUserAction(f: ActionFacts): ActionDecision {
       if (!f.targetIsAdmin) return deny(409, "This user is not an admin");
       if (f.adminCount <= 1) return deny(409, "You can't remove the last admin");
       return { ok: true, action, reason };
+    }
+
+    case "revoke_session": {
+      const sessionId = (f.data as { sessionId?: unknown } | null | undefined)?.sessionId;
+      if (typeof sessionId !== "string" || !UUID_RE.test(sessionId)) return deny(400, "A valid sessionId is required");
+      return { ok: true, action, reason, sessionId };
     }
 
     case "unsuspend":

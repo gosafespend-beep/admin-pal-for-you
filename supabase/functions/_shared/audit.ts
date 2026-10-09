@@ -70,6 +70,29 @@ export async function logAuditStrict(adminClient: AdminClient, entry: AuditEntry
   }
 }
 
+/**
+ * Records that an admin looked at personal data, at most once per
+ * (admin, action, target) in the window, so refreshing a page doesn't flood the
+ * log. Best-effort: a failure here never blocks the read.
+ */
+export async function logReadOnce(adminClient: AdminClient, entry: AuditEntry, windowMinutes = 15): Promise<void> {
+  if (!entry.adminUserId) return
+  try {
+    const since = new Date(Date.now() - windowMinutes * 60_000).toISOString()
+    const { count } = await adminClient
+      .from('admin_audit_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('admin_user_id', entry.adminUserId)
+      .eq('action', entry.action)
+      .eq('target_id', entry.targetId)
+      .gte('created_at', since)
+    if ((count ?? 0) > 0) return
+    await logAudit(adminClient, entry)
+  } catch (e) {
+    console.error('audit: logReadOnce failed', e instanceof Error ? e.message : e)
+  }
+}
+
 /** Writes the intent, runs the action, then records how it ended. */
 export async function audited<T>(
   adminClient: AdminClient,

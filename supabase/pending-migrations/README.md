@@ -30,3 +30,12 @@ ignores it (and injects a third-party `/__l5e/events` script that a strict
 site is served, e.g. a Cloudflare Transform Rule on `admin.gosafespend.com`.
 Test with a report-only header first:
 `Content-Security-Policy-Report-Only`.
+
+## Phase 1 migrations
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 3 | `03_server_side_admin_queries.sql` | **Before** deploying the Phase 1 `admin-users` and `admin-analytics` functions (they call it) | Adds `admin_list_users` and `admin_analytics_core`, service-role only. Additive. |
+| 4 | `04_revoke_session_server_only.sql` | After the Phase 1 frontend and `admin-user-actions` are live | Browser sessions can no longer call `revoke_user_session` directly; revoking goes through the audited function |
+
+Order for Phase 1: apply 03 → merge → deploy functions → check Users/Analytics/session revoke → apply 04.

@@ -1,5 +1,6 @@
 import { corsFor, forbidden } from "../_shared/guard.ts";
 import { errorResponse, HttpError, isUuid, json, requireAdmin } from "../_shared/http.ts";
+import { logReadOnce } from "../_shared/audit.ts";
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
@@ -20,6 +21,16 @@ Deno.serve(async (req) => {
 
     const { data: { user }, error: userError } = await adminClient.auth.admin.getUserById(userId);
     if (userError || !user) throw new HttpError(404, "User not found");
+
+    // Opening a user's page shows their email, IP, devices and recent spending.
+    await logReadOnce(adminClient, {
+      adminUserId: ctx.adminId,
+      action: "view_user",
+      targetType: "user",
+      targetId: userId,
+      details: { email: user.email },
+      meta: ctx.meta,
+    });
 
     // Fetch admin-relevant data only
     const [

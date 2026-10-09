@@ -1,37 +1,17 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { errorResponse, json, requireAdmin } from "../_shared/http.ts";
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (!cors) return forbidden();
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let requestId: string | undefined;
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'No authorization header' }),
-        { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    })
-
-    const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
-    if (adminError || !isAdmin) {
-      return new Response(
-        JSON.stringify({ error: 'Access denied. Admin privileges required.' }),
-        { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+    const ctx = await requireAdmin(req, cors);
+    if (ctx instanceof Response) return ctx;
+    requestId = ctx.meta.requestId;
+    const { adminClient } = ctx;
 
     // All data fetched via SQL RPCs - no in-memory filtering
     const [
@@ -133,16 +113,8 @@ Deno.serve(async (req) => {
       })),
     }
 
-    return new Response(
-      JSON.stringify(stats),
-      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
-    )
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    console.error('Error in admin-stats function:', error)
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
-    )
+    return json(stats, 200, cors);
+  } catch (error) {
+    return errorResponse(error, cors, requestId, "admin-stats");
   }
-})
+});
