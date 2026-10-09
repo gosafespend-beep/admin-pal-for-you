@@ -15,6 +15,7 @@ const routeLabels: Record<string, string> = {
   waitlist: "Waitlist",
   subscriptions: "Subscriptions",
   billing: "Billing",
+  growth: "Growth",
   analytics: "Analytics",
   "audit-log": "Audit Log",
   blog: "Blog",

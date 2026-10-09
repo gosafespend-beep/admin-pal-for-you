@@ -10,6 +10,7 @@ import {
   FileText,
   BookOpen,
   Wallet,
+  TrendingUp,
 } from "lucide-react";
 
 export const overviewNavItems = [
@@ -32,6 +33,7 @@ export const contentNavItems = [
 ];
 
 export const insightsNavItems = [
+  { title: "Growth", url: "/growth", icon: TrendingUp },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Ebook", url: "/ebook", icon: BookOpen },
   { title: "Audit Log", url: "/audit-log", icon: Shield },
