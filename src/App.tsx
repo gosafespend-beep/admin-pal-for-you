@@ -19,6 +19,7 @@ const Billing = lazy(() => import("./pages/admin/Billing"));
 const Growth = lazy(() => import("./pages/admin/Growth"));
 const DataRequests = lazy(() => import("./pages/admin/DataRequests"));
 const Support = lazy(() => import("./pages/admin/Support"));
+const Marketing = lazy(() => import("./pages/admin/Marketing"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const Analytics = lazy(() => import("./pages/admin/Analytics"));
 const AuditLog = lazy(() => import("./pages/admin/AuditLog"));
@@ -84,6 +85,7 @@ const router = createBrowserRouter([
           { path: "growth", element: <Growth /> },
           { path: "data-requests", element: <DataRequests /> },
           { path: "support", element: <Support /> },
+          { path: "marketing", element: <Marketing /> },
           { path: "subscriptions", element: <Subscriptions /> },
           { path: "analytics", element: <Analytics /> },
           { path: "audit-log", element: <AuditLog /> },

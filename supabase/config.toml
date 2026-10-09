@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.admin-support]
 verify_jwt = false
+
+[functions.admin-marketing]
+verify_jwt = false

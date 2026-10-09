@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen, LifeBuoy } from "lucide-react";
+import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen, LifeBuoy, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -20,6 +20,7 @@ const pages = [
   { name: "Waitlist", path: "/waitlist", icon: ClipboardList, keywords: "signups emails" },
   { name: "Settings", path: "/settings", icon: Settings, keywords: "config health admins" },
   { name: "Support", path: "/support", icon: LifeBuoy, keywords: "help lookup find customer reply macro email ticket" },
+  { name: "Marketing", path: "/marketing", icon: Megaphone, keywords: "social posts agents ai spend credits instagram threads facebook pipeline tokens" },
   { name: "Data requests", path: "/data-requests", icon: ClipboardList, keywords: "gdpr dsar delete export privacy consent retention" },
   { name: "Growth", path: "/growth", icon: BarChart3, keywords: "funnel retention cohorts signups activation acquisition" },
   { name: "Analytics", path: "/analytics", icon: BarChart3, keywords: "funnel retention churn events product" },
