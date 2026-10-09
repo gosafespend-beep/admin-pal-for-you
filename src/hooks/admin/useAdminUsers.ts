@@ -16,6 +16,9 @@ export interface AdminUser {
   date_format: string;
   roles: string[];
   is_admin: boolean;
+  platforms: string[];
+  plan: "paid" | "trial" | "granted" | "free";
+  stage: "signed_up" | "onboarded" | "activated" | "paying";
 }
 
 export interface AdminUsersFilters {
@@ -23,6 +26,9 @@ export interface AdminUsersFilters {
   role: string;
   verified: string;
   status: string;
+  platform: string;
+  plan: string;
+  stage: string;
   page: number;
   pageSize: number;
   sortBy: string;
@@ -39,6 +45,8 @@ export interface AdminUsersResponse {
     totalAdmins: number;
     totalVerified: number;
     totalSuspended: number;
+    paying?: number;
+    trialing?: number;
   };
 }
 
@@ -48,6 +56,9 @@ export function useAdminUsers(filters?: AdminUsersFilters) {
     role: "",
     verified: "",
     status: "",
+    platform: "",
+    plan: "",
+    stage: "",
     page: 1,
     pageSize: 20,
     sortBy: "created_at",
@@ -68,6 +79,9 @@ export function useAdminUsers(filters?: AdminUsersFilters) {
           role: f.role,
           verified: f.verified,
           status: f.status,
+          platform: f.platform,
+          plan: f.plan,
+          stage: f.stage,
         },
       }),
     placeholderData: (previous) => previous,

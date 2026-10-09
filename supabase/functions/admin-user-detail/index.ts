@@ -40,10 +40,9 @@ Deno.serve(async (req) => {
       expenseCountResult,
       incomeCountResult,
       transferCountResult,
-      expensesResult,
-      incomesResult,
       subscriptionResult,
       sessionsResult,
+      overviewResult,
     ] = await Promise.all([
       adminClient.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
       adminClient.from('user_settings').select('*').eq('user_id', userId).maybeSingle(),
@@ -51,16 +50,11 @@ Deno.serve(async (req) => {
       adminClient.from('expenses').select('id', { count: 'exact', head: true }).eq('user_id', userId),
       adminClient.from('incomes').select('id', { count: 'exact', head: true }).eq('user_id', userId),
       adminClient.from('transfers').select('id', { count: 'exact', head: true }).eq('user_id', userId),
-      adminClient.from('expenses').select('id, amount, category, date, note').eq('user_id', userId).order('date', { ascending: false }).limit(10),
-      adminClient.from('incomes').select('id, amount, source, category, date, note').eq('user_id', userId).order('date', { ascending: false }).limit(10),
       adminClient.from('subscriptions').select('*').eq('user_id', userId).maybeSingle(),
       adminClient.rpc('list_user_sessions', { p_user_id: userId }),
+      adminClient.rpc('admin_user_360', { p_user_id: userId }),
     ])
-
-    const recentTransactions = ([
-      ...(expensesResult.data || []).map((e: Record<string, unknown>) => ({ ...e, type: 'expense' as string })),
-      ...(incomesResult.data || []).map((i: Record<string, unknown>) => ({ ...i, type: 'income' as string })),
-    ] as Array<Record<string, unknown>>).sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime()).slice(0, 10)
+    if (overviewResult.error) throw overviewResult.error
 
     const userRoles = rolesResult.data?.map((r: Record<string, unknown>) => r.role) || []
 
@@ -89,7 +83,11 @@ Deno.serve(async (req) => {
         lastActiveAt: user.last_sign_in_at,
         accountAge: user.created_at,
       },
-      recentTransactions,
+      // Individual transactions are not sent by default. They are available
+      // through the reasoned, audited "reveal_transactions" action.
+      recentTransactions: [],
+      transactionsMasked: true,
+      overview: overviewResult.data,
       subscription: subscriptionResult.data || null,
       sessions: (sessionsResult.data || []).map((s: Record<string, unknown>) => ({
         session_id: s.session_id,

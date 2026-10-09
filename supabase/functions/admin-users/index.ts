@@ -32,6 +32,9 @@ Deno.serve(async (req) => {
       p_order: url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc",
       p_limit: pageSize,
       p_offset: (page - 1) * pageSize,
+      p_platform: url.searchParams.get("platform") || "",
+      p_plan: url.searchParams.get("plan") || "",
+      p_stage: url.searchParams.get("stage") || "",
     });
     if (error) throw error;
 

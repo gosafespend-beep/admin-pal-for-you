@@ -57,7 +57,40 @@ export interface UserSession {
   ip: string;
 }
 
+export interface UserOverview {
+  acquisition: {
+    source: string | null; medium: string | null; campaign: string | null; content: string | null;
+    referrer: string | null; landingPath: string | null; country: string | null;
+    acquiredAt: string | null; writeAccessUntil: string | null;
+  } | null;
+  platforms: Array<{ platform: string; events: number; firstSeen: string; lastSeen: string }>;
+  milestones: {
+    signup: string | null; onboardingComplete: string | null; firstTransaction: string | null;
+    paywallView: string | null; checkoutStart: string | null; purchaseSuccess: string | null;
+    lastEvent: string | null; events: number;
+  };
+  timeline: Array<{ event: string; platform: string | null; at: string }>;
+  accounts: Array<{ type: string; currency: string; active: boolean }>;
+  counts: {
+    expenses: number; incomes: number; transfers: number; accounts: number; budgets: number;
+    goals: number; bills: number; debts: number; recurring: number;
+  };
+  lastTransactionAt: string | null;
+  entitlements: Array<{
+    entitlement: string; product_id: string; status: string; is_active: boolean; period_type: string | null;
+    store: string; environment: string | null; purchased_at: string | null; expires_at: string | null;
+  }>;
+  notifications: { billReminders: boolean; budgetAlerts: boolean; marketingEmails: boolean; weeklySummary: boolean } | null;
+}
+
+export interface RevealedTransaction {
+  id: string; type: "expense" | "income"; date: string; amount: number; currency: string;
+  category?: string | null; source?: string | null; note?: string | null;
+}
+
 export interface UserDetailResponse {
+  overview: UserOverview;
+  transactionsMasked: boolean;
   user: UserDetail;
   activitySummary: ActivitySummary;
   recentTransactions: Transaction[];
@@ -78,6 +111,20 @@ export function useAdminUserDetail(userId: string | undefined) {
 }
 
 export type UserAction = 'suspend' | 'unsuspend' | 'delete' | 'promote' | 'demote' | 'resend_confirmation';
+
+/** Shows a person's recent transactions. Needs a written reason, which is audited. */
+export function useRevealTransactions() {
+  return useMutation({
+    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
+      invokeAdmin<{ message: string; data: RevealedTransaction[] }>("admin-user-actions", {
+        method: "POST",
+        body: { userId, action: "reveal_transactions", reason },
+      }),
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
 
 export function useAdminUserActions() {
   const queryClient = useQueryClient();
