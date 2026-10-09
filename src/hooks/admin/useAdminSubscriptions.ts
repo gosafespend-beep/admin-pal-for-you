@@ -6,6 +6,9 @@ interface Subscription {
   id: string;
   user_id: string;
   status: string;
+  /** Stored value; status above is what is true now (ended trials read as expired). */
+  rawStatus?: string;
+  billedBy?: "paystack" | null;
   plan_type: string | null;
   trial_start: string;
   trial_end: string;

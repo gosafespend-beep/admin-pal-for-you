@@ -9,6 +9,7 @@ import {
   Shield,
   FileText,
   BookOpen,
+  Wallet,
 } from "lucide-react";
 
 export const overviewNavItems = [
@@ -22,6 +23,7 @@ export const userNavItems = [
 
 export const financeNavItems = [
   { title: "Transactions", url: "/transactions", icon: Receipt },
+  { title: "Billing", url: "/billing", icon: Wallet },
   { title: "Subscriptions", url: "/subscriptions", icon: CreditCard },
 ];
 

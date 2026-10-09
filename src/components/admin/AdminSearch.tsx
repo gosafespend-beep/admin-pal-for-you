@@ -15,6 +15,7 @@ const pages = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, keywords: "home overview stats" },
   { name: "Users", path: "/users", icon: Users, keywords: "members accounts people" },
   { name: "Transactions", path: "/transactions", icon: Receipt, keywords: "expenses income payments" },
+  { name: "Billing", path: "/billing", icon: CreditCard, keywords: "mrr arr revenue trials churn paystack" },
   { name: "Subscriptions", path: "/subscriptions", icon: CreditCard, keywords: "plans billing" },
   { name: "Waitlist", path: "/waitlist", icon: ClipboardList, keywords: "signups emails" },
   { name: "Settings", path: "/settings", icon: Settings, keywords: "config health admins" },

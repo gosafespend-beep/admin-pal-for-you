@@ -90,8 +90,8 @@ export default function Subscriptions() {
   const handleSubscriptionAction = (subId: string, action: string, email: string) => {
     const configs: Record<string, { title: string; description: string }> = {
       extend_trial: { title: "Extend Trial", description: `Extend trial by 7 days for ${email}.` },
-      cancel: { title: "Cancel Subscription", description: `Cancel subscription for ${email}.` },
-      reactivate: { title: "Reactivate Subscription", description: `Reactivate subscription for ${email} with a 30-day period. Subscriptions billed by Paystack or an app store can't be changed here; use the provider.` },
+      cancel: { title: "Cancel Subscription", description: `Cancel the subscription for ${email}. If they pay through Paystack, charging is stopped at Paystack too. App Store and Google Play subscriptions can only be cancelled by the person in their store.` },
+      reactivate: { title: "Reactivate Subscription", description: `Reactivate subscription for ${email} with a 30-day period. Paystack subscriptions are resumed at Paystack. App Store and Google Play subscriptions can't be changed here.` },
     };
     setConfirmAction({ open: true, subscriptionId: subId, action, ...configs[action] });
   };
@@ -311,7 +311,7 @@ export default function Subscriptions() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              {sub.status === "trialing" && (
+                              {(sub.rawStatus ?? sub.status) === "trialing" && (
                                 <DropdownMenuItem onClick={() => handleSubscriptionAction(sub.id, "extend_trial", sub.userEmail)}>
                                   <CalendarPlus className="mr-2 h-4 w-4" /> Extend Trial
                                 </DropdownMenuItem>
@@ -422,7 +422,7 @@ export default function Subscriptions() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Manage</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {sub.status === "trialing" && (
+                            {(sub.rawStatus ?? sub.status) === "trialing" && (
                               <DropdownMenuItem onClick={() => handleSubscriptionAction(sub.id, "extend_trial", sub.userEmail)}>
                                 <CalendarPlus className="mr-2 h-4 w-4" /> Extend Trial (+7d)
                               </DropdownMenuItem>
