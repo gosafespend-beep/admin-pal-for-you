@@ -1,67 +1,74 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { logAuditStrict } from "../_shared/audit.ts";
+import { clampInt, emailsFor, errorResponse, HttpError, json, requireAdmin, selectAll } from "../_shared/http.ts";
+
+const EXPORT_RESOURCES = new Set(["users", "transactions", "subscriptions", "waitlist", "audit-log"]);
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (!cors) return forbidden();
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let requestId: string | undefined;
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
+    const ctx = await requireAdmin(req, cors);
+    if (ctx instanceof Response) return ctx;
+    requestId = ctx.meta.requestId;
+    const { adminClient } = ctx;
+
+    // The browser builds CSV exports itself; it calls this first so every
+    // export of personal data is on record (and is refused if it cannot be).
+    if (req.method === "POST") {
+      const body = await req.json().catch(() => ({}));
+      if (body.event !== "export" || !EXPORT_RESOURCES.has(body.resource)) throw new HttpError(400, "Unsupported event");
+      const count = Number(body.count);
+      if (!Number.isInteger(count) || count < 1 || count > 1_000_000) throw new HttpError(400, "Invalid count");
+      await logAuditStrict(adminClient, {
+        adminUserId: ctx.adminId,
+        action: "export_csv",
+        targetType: String(body.resource),
+        targetId: String(body.resource),
+        details: { count, filters: typeof body.filters === "object" && body.filters ? body.filters : {} },
+        meta: ctx.meta,
+      });
+      return json({ success: true }, 200, cors);
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    if (req.method === "GET") {
+      const url = new URL(req.url);
+      const page = clampInt(url.searchParams.get("page"), 1, 1, 10_000);
+      const pageSize = clampInt(url.searchParams.get("pageSize"), 30, 1, 100);
+      const action = url.searchParams.get("action") || "";
+      const targetType = url.searchParams.get("targetType") || "";
+      const offset = (page - 1) * pageSize;
 
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    })
+      let query = adminClient.from("admin_audit_log").select("*", { count: "exact" });
+      if (action) query = query.eq("action", action);
+      if (targetType) query = query.eq("target_type", targetType);
+      query = query.order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
 
-    const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
-    if (adminError || !isAdmin) {
-      return new Response(JSON.stringify({ error: 'Access denied' }), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } })
-    }
+      const { data, count, error } = await query;
+      if (error) throw error;
 
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
-
-    if (req.method === 'GET') {
-      const url = new URL(req.url)
-      const page = parseInt(url.searchParams.get('page') || '1')
-      const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '30'), 100)
-      const action = url.searchParams.get('action') || ''
-      const targetType = url.searchParams.get('targetType') || ''
-      const offset = (page - 1) * pageSize
-
-      let query = adminClient.from('admin_audit_log').select('*', { count: 'exact' })
-      if (action) query = query.eq('action', action)
-      if (targetType) query = query.eq('target_type', targetType)
-      query = query.order('created_at', { ascending: false }).range(offset, offset + pageSize - 1)
-
-      const { data, count, error } = await query
-      if (error) throw error
-
-      // Enrich with admin emails
-      const adminIds = [...new Set((data || []).map((l: { admin_user_id: string }) => l.admin_user_id))]
-      const { data: { users } } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
-      const userMap = new Map((users || []).map(u => [u.id, u.email]))
-
+      const emails = await emailsFor(adminClient, (data || []).map((l: { admin_user_id: string }) => l.admin_user_id));
       const enriched = (data || []).map((entry: Record<string, unknown>) => ({
         ...entry,
-        adminEmail: userMap.get(entry.admin_user_id as string) || 'Unknown',
-      }))
+        adminEmail: emails.get(entry.admin_user_id as string) || "Unknown",
+      }));
 
-      return new Response(JSON.stringify({ data: enriched, total: count || 0, page, pageSize }), {
-        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
-      })
+      // Filter dropdowns list what is actually in the log rather than a fixed
+      // list that drifts out of date.
+      const rows = await selectAll(adminClient, "admin_audit_log", "action, target_type");
+      const facets = {
+        actions: [...new Set(rows.map((r) => r.action as string))].sort(),
+        targetTypes: [...new Set(rows.map((r) => r.target_type as string))].sort(),
+      };
+
+      return json({ data: enriched, total: count || 0, page, pageSize, facets }, 200, cors);
     }
 
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...cors, 'Content-Type': 'application/json' } })
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Unknown error'
-    console.error('admin-audit-log error:', error)
-    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+    return json({ error: "Method not allowed" }, 405, cors);
+  } catch (error) {
+    return errorResponse(error, cors, requestId, "admin-audit-log");
   }
-})
+});

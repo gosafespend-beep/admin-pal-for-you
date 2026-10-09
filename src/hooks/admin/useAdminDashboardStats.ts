@@ -1,6 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { invokeAdmin } from "@/lib/adminApi";
 
 export interface DashboardStats {
   overview: {
@@ -22,6 +21,8 @@ export interface DashboardStats {
     cancelled: number;
     expired: number;
     trialConversionRate: number;
+    /** Subscriptions that have either converted or churned; the rate is meaningless when this is small. */
+    conversionSample: number;
   };
   engagement: {
     activeUsers7d: number;
@@ -59,47 +60,13 @@ export interface DashboardStats {
 }
 
 export function useAdminDashboardStats() {
-  const queryClient = useQueryClient();
-  const queryKey = ["admin", "dashboard-stats"];
-
-  // Subscribe to realtime INSERT events only to reduce noise
-  useEffect(() => {
-    const channel = supabase
-      .channel("admin-dashboard-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "expenses" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "incomes" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "transfers" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "subscriptions" }, () => queryClient.invalidateQueries({ queryKey }))
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "waitlist" }, () => queryClient.invalidateQueries({ queryKey }))
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
-
+  // Refreshes on a timer and on demand. (It used to hold six realtime
+  // subscriptions on the customer tables open just to refetch this one query,
+  // which refetched every aggregate on every customer insert.)
   return useQuery({
-    queryKey,
-    queryFn: async (): Promise<DashboardStats> => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error("Not authenticated");
-      }
-
-      const response = await supabase.functions.invoke("admin-stats", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message || "Failed to fetch stats");
-      }
-
-      return response.data;
-    },
+    queryKey: ["admin", "dashboard-stats"],
+    queryFn: () => invokeAdmin<DashboardStats>("admin-stats"),
     staleTime: 60000,
+    refetchInterval: 5 * 60000,
   });
 }

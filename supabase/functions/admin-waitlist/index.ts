@@ -1,131 +1,113 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
-import { getAdminUserId, logAudit } from "../_shared/audit.ts";
+import { audited } from "../_shared/audit.ts";
+import { clampInt, errorResponse, escapeLike, HttpError, isUuid, json, requireAdmin } from "../_shared/http.ts";
 
-async function verifyAdmin(req: Request) {
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader) throw new Error('No authorization header')
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } }
-  })
-  const { data: isAdmin, error } = await userClient.rpc('is_admin')
-  if (error || !isAdmin) throw new Error('Access denied')
-}
+// The sign-up forms write "waitlist" and "newsletter"; the older review flow
+// used pending/approved/rejected. All are accepted so nothing existing breaks.
+const STATUSES = ["waitlist", "newsletter", "pending", "approved", "rejected"];
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (!cors) return forbidden();
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let requestId: string | undefined;
   try {
-    await verifyAdmin(req)
+    const ctx = await requireAdmin(req, cors);
+    if (ctx instanceof Response) return ctx;
+    requestId = ctx.meta.requestId;
+    const { adminClient } = ctx;
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+    if (req.method === "GET") {
+      const url = new URL(req.url);
+      const page = clampInt(url.searchParams.get("page"), 1, 1, 10_000);
+      const pageSize = clampInt(url.searchParams.get("pageSize"), 20, 1, 100);
+      const search = (url.searchParams.get("search") || "").trim().slice(0, 100);
+      const status = url.searchParams.get("status") || "";
+      const offset = (page - 1) * pageSize;
 
-    if (req.method === 'GET') {
-      const url = new URL(req.url)
-      const page = parseInt(url.searchParams.get('page') || '1')
-      const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '20'), 100)
-      const search = url.searchParams.get('search') || ''
-      const status = url.searchParams.get('status') || ''
-      const offset = (page - 1) * pageSize
+      let q = adminClient.from("waitlist").select("*", { count: "exact" });
+      if (search) q = q.ilike("email", `%${escapeLike(search)}%`);
+      if (status) q = q.eq("status", status);
+      q = q.order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
 
-      let q = adminClient.from('waitlist').select('*', { count: 'exact' })
-      if (search) q = q.ilike('email', `%${search}%`)
-      if (status) q = q.eq('status', status)
-      q = q.order('created_at', { ascending: false }).range(offset, offset + pageSize - 1)
+      const { data, count, error } = await q;
+      if (error) throw error;
 
-      const { data, count, error } = await q
-      if (error) throw error
-
-      // Get status counts
-      const { data: allEntries } = await adminClient.from('waitlist').select('status')
-      const statusCounts = {
-        total: count || 0,
-        pending: 0,
-        approved: 0,
-        rejected: 0,
+      // Counts per status, whatever statuses exist, over the whole table.
+      const statusCounts: Record<string, number> = { total: 0 };
+      for (let from = 0; ; from += 1000) {
+        const { data: rows, error: e } = await adminClient.from("waitlist").select("status").range(from, from + 999);
+        if (e) throw e;
+        for (const r of rows ?? []) {
+          statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+          statusCounts.total++;
+        }
+        if (!rows || rows.length < 1000) break;
       }
-      allEntries?.forEach((e: { status: string }) => {
-        if (e.status === 'pending') statusCounts.pending++
-        else if (e.status === 'approved') statusCounts.approved++
-        else if (e.status === 'rejected') statusCounts.rejected++
-      })
 
-      return new Response(
-        JSON.stringify({ data, total: count || 0, page, pageSize, statusCounts }),
-        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
+      return json({ data, total: count || 0, page, pageSize, statusCounts }, 200, cors);
     }
 
-    if (req.method === 'PATCH') {
-      const body = await req.json()
-      const { id, status } = body
-      if (!id || !status) throw new Error('id and status required')
-      if (!['pending', 'approved', 'rejected'].includes(status)) throw new Error('Invalid status')
+    if (req.method === "PATCH") {
+      const { id, status } = await req.json().catch(() => ({}));
+      if (!isUuid(id)) throw new HttpError(400, "A valid id is required");
+      if (!STATUSES.includes(status)) throw new HttpError(400, "Invalid status");
 
-      const { data, error } = await adminClient
-        .from('waitlist')
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single()
-      if (error) throw error
+      const { data: before } = await adminClient.from("waitlist").select("email, status").eq("id", id).maybeSingle();
+      if (!before) throw new HttpError(404, "Entry not found");
 
-      await logAudit(adminClient, {
-        adminUserId: await getAdminUserId(req),
-        action: `waitlist_status_${status}`,
-        targetType: 'waitlist',
-        targetId: id,
-        details: { email: data?.email, status },
-      })
-
-      return new Response(
-        JSON.stringify({ data }),
-        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
+      const data = await audited(
+        adminClient,
+        {
+          adminUserId: ctx.adminId,
+          action: `waitlist_status_${status}`,
+          targetType: "waitlist",
+          targetId: id,
+          details: { email: before.email, from: before.status, status },
+          meta: ctx.meta,
+        },
+        async () => {
+          const { data, error } = await adminClient
+            .from("waitlist")
+            .update({ status, updated_at: new Date().toISOString() })
+            .eq("id", id)
+            .select()
+            .single();
+          if (error) throw error;
+          return data;
+        },
+      );
+      return json({ data }, 200, cors);
     }
 
-    if (req.method === 'DELETE') {
-      const body = await req.json()
-      const { id } = body
-      if (!id) throw new Error('id required')
+    if (req.method === "DELETE") {
+      const { id } = await req.json().catch(() => ({}));
+      if (!isUuid(id)) throw new HttpError(400, "A valid id is required");
 
-      const { data: entry } = await adminClient.from('waitlist').select('email').eq('id', id).maybeSingle()
-      const { error } = await adminClient.from('waitlist').delete().eq('id', id)
-      if (error) throw error
+      const { data: entry } = await adminClient.from("waitlist").select("email, status").eq("id", id).maybeSingle();
+      if (!entry) throw new HttpError(404, "Entry not found");
 
-      await logAudit(adminClient, {
-        adminUserId: await getAdminUserId(req),
-        action: 'waitlist_delete',
-        targetType: 'waitlist',
-        targetId: id,
-        details: { email: entry?.email },
-      })
-
-      return new Response(
-        JSON.stringify({ success: true }),
-        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
+      await audited(
+        adminClient,
+        {
+          adminUserId: ctx.adminId,
+          action: "waitlist_delete",
+          targetType: "waitlist",
+          targetId: id,
+          details: { email: entry.email, status: entry.status },
+          meta: ctx.meta,
+        },
+        async () => {
+          const { error } = await adminClient.from("waitlist").delete().eq("id", id);
+          if (error) throw error;
+        },
+      );
+      return json({ success: true }, 200, cors);
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...cors, 'Content-Type': 'application/json' } }
-    )
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const status = errorMessage === 'Access denied' ? 403 : errorMessage === 'No authorization header' ? 401 : 500
-    console.error('Error in admin-waitlist:', error)
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status, headers: { ...cors, 'Content-Type': 'application/json' } }
-    )
+    return json({ error: "Method not allowed" }, 405, cors);
+  } catch (error) {
+    return errorResponse(error, cors, requestId, "admin-waitlist");
   }
-})
+});

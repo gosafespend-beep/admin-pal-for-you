@@ -1,108 +1,106 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { audited } from "../_shared/audit.ts";
+import { emailsFor, errorResponse, HttpError, isUuid, json, requireAdmin } from "../_shared/http.ts";
 
-async function getAdminUserId(req: Request) {
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader) throw new Error('No authorization header')
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } }
-  })
-  
-  const { data: isAdmin, error } = await userClient.rpc('is_admin')
-  if (error || !isAdmin) throw new Error('Access denied')
-
-  const { data: { user } } = await userClient.auth.getUser()
-  if (!user) throw new Error('Could not get user')
-  return user.id
-}
+// Matches the options in UserNotes.tsx.
+const TAGS = ["VIP", "Churning", "Spam", "Support", "Potential"];
+const MAX_NOTE = 2000;
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (!cors) return forbidden();
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let requestId: string | undefined;
   try {
-    const adminUserId = await getAdminUserId(req)
+    const ctx = await requireAdmin(req, cors);
+    if (ctx instanceof Response) return ctx;
+    requestId = ctx.meta.requestId;
+    const { adminClient } = ctx;
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
-
-    if (req.method === 'GET') {
-      const url = new URL(req.url)
-      const userId = url.searchParams.get('userId')
-      if (!userId) throw new Error('userId required')
+    if (req.method === "GET") {
+      const userId = new URL(req.url).searchParams.get("userId");
+      if (!isUuid(userId)) throw new HttpError(400, "A valid userId is required");
 
       const { data, error } = await adminClient
-        .from('admin_user_notes')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+        .from("admin_user_notes")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
 
-      if (error) throw error
-
-      // Enrich with admin emails
-      const adminIds = [...new Set((data || []).map((n: { admin_id: string }) => n.admin_id))]
-      const { data: { users } } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
-      const userMap = new Map((users || []).map(u => [u.id, u.email]))
-
+      const emails = await emailsFor(adminClient, (data || []).map((n: { admin_id: string }) => n.admin_id));
       const enriched = (data || []).map((note: Record<string, unknown>) => ({
         ...note,
-        adminEmail: userMap.get(note.admin_id as string) || 'Unknown',
-      }))
-
-      return new Response(JSON.stringify({ data: enriched }), {
-        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
-      })
+        adminEmail: emails.get(note.admin_id as string) || "Unknown",
+      }));
+      return json({ data: enriched }, 200, cors);
     }
 
-    if (req.method === 'POST') {
-      const { userId, note, tag } = await req.json()
-      if (!userId || !note) throw new Error('userId and note are required')
+    if (req.method === "POST") {
+      const { userId, note, tag } = await req.json().catch(() => ({}));
+      if (!isUuid(userId)) throw new HttpError(400, "A valid userId is required");
+      const text = typeof note === "string" ? note.trim() : "";
+      if (!text) throw new HttpError(400, "A note is required");
+      if (text.length > MAX_NOTE) throw new HttpError(400, `Notes are limited to ${MAX_NOTE} characters`);
+      if (tag != null && !TAGS.includes(tag)) throw new HttpError(400, "Unknown tag");
 
-      const { data, error } = await adminClient
-        .from('admin_user_notes')
-        .insert({ user_id: userId, admin_id: adminUserId, note, tag: tag || null })
-        .select()
-        .single()
-
-      if (error) throw error
-
-      // Also log to audit
-      await adminClient.from('admin_audit_log').insert({
-        admin_user_id: adminUserId,
-        action: 'add_note',
-        target_type: 'user',
-        target_id: userId,
-        details: { note, tag },
-      })
-
-      return new Response(JSON.stringify({ data }), {
-        status: 201, headers: { ...cors, 'Content-Type': 'application/json' }
-      })
+      // Notes can hold personal observations, so they are audited by id and tag
+      // only; the text itself stays in the notes table.
+      const data = await audited(
+        adminClient,
+        {
+          adminUserId: ctx.adminId,
+          action: "add_note",
+          targetType: "user",
+          targetId: userId,
+          details: { tag: tag ?? null, length: text.length },
+          meta: ctx.meta,
+        },
+        async () => {
+          const { data, error } = await adminClient
+            .from("admin_user_notes")
+            .insert({ user_id: userId, admin_id: ctx.adminId, note: text, tag: tag || null })
+            .select()
+            .single();
+          if (error) throw error;
+          return data;
+        },
+      );
+      return json({ data }, 201, cors);
     }
 
-    if (req.method === 'DELETE') {
-      const { noteId } = await req.json()
-      if (!noteId) throw new Error('noteId required')
+    if (req.method === "DELETE") {
+      const { noteId } = await req.json().catch(() => ({}));
+      if (!isUuid(noteId)) throw new HttpError(400, "A valid noteId is required");
 
-      const { error } = await adminClient.from('admin_user_notes').delete().eq('id', noteId)
-      if (error) throw error
+      const { data: existing } = await adminClient
+        .from("admin_user_notes")
+        .select("user_id, admin_id, tag")
+        .eq("id", noteId)
+        .maybeSingle();
+      if (!existing) throw new HttpError(404, "Note not found");
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
-      })
+      await audited(
+        adminClient,
+        {
+          adminUserId: ctx.adminId,
+          action: "delete_note",
+          targetType: "user",
+          targetId: existing.user_id,
+          details: { note_id: noteId, note_author: existing.admin_id, tag: existing.tag },
+          meta: ctx.meta,
+        },
+        async () => {
+          const { error } = await adminClient.from("admin_user_notes").delete().eq("id", noteId);
+          if (error) throw error;
+        },
+      );
+      return json({ success: true }, 200, cors);
     }
 
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...cors, 'Content-Type': 'application/json' } })
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Unknown error'
-    const status = msg === 'Access denied' ? 403 : msg === 'No authorization header' ? 401 : 500
-    console.error('admin-user-notes error:', error)
-    return new Response(JSON.stringify({ error: msg }), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
+    return json({ error: "Method not allowed" }, 405, cors);
+  } catch (error) {
+    return errorResponse(error, cors, requestId, "admin-user-notes");
   }
-})
+});

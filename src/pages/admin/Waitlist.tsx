@@ -36,24 +36,13 @@ import { format } from "date-fns";
 import { useAdminWaitlist, useWaitlistActions, WaitlistFilters } from "@/hooks/admin/useAdminWaitlist";
 import { AdminErrorState } from "@/components/admin/AdminErrorState";
 import { MobileCardList } from "@/components/admin/MobileCardList";
+import { useExportCsv } from "@/hooks/admin/useExportCsv";
 
-function exportToCSV(data: Record<string, unknown>[], filename: string) {
-  if (!data.length) return;
-  const headers = Object.keys(data[0]);
-  const csvContent = [
-    headers.join(','),
-    ...data.map(row => headers.map(h => `"${String(row[h] ?? '')}"`).join(','))
-  ].join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${filename}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
+// The sign-up forms write "waitlist" (join the waitlist) and "newsletter"
+// (subscribe only); pending/approved/rejected are kept for older rows.
 const statusConfig: Record<string, { color: string; icon: React.ElementType }> = {
+  waitlist: { color: "bg-primary/10 text-primary border-primary/20", icon: ClipboardList },
+  newsletter: { color: "bg-info/10 text-info border-info/20", icon: Mail },
   pending: { color: "bg-warning/10 text-warning border-warning/20", icon: Clock },
   approved: { color: "bg-primary/10 text-primary border-primary/20", icon: CheckCircle },
   rejected: { color: "bg-destructive/10 text-destructive border-destructive/20", icon: XCircle },
@@ -69,10 +58,11 @@ export default function Waitlist() {
   const [searchInput, setSearchInput] = useState("");
 
   const { data, isLoading, error, refetch } = useAdminWaitlist(filters);
-  const { updateStatus, deleteEntry } = useWaitlistActions();
+  const { deleteEntry } = useWaitlistActions();
+  const exportCsv = useExportCsv();
 
   const entries = data?.data || [];
-  const counts = data?.statusCounts || { total: 0, pending: 0, approved: 0, rejected: 0 };
+  const counts = data?.statusCounts || { total: 0 };
   const totalPages = Math.ceil((data?.total || 0) / filters.pageSize);
 
   const handleSearch = () => setFilters(f => ({ ...f, search: searchInput, page: 1 }));
@@ -96,7 +86,7 @@ export default function Waitlist() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Waitlist</h1>
           <p className="text-muted-foreground">
-            Manage waitlist entries and send invitations
+            People who joined the waitlist or subscribed to the newsletter
           </p>
         </div>
         <div className="flex gap-2">
@@ -104,7 +94,12 @@ export default function Waitlist() {
             <RefreshCw className="h-4 w-4" />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportToCSV(entries as unknown as Record<string, unknown>[], "waitlist-export")} disabled={!entries.length}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportCsv({
+            resource: "waitlist",
+            filename: "waitlist-export",
+            rows: entries as unknown as Array<Record<string, unknown>>,
+            filters: { search: filters.search, status: filters.status },
+          })} disabled={!entries.length}>
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
@@ -126,28 +121,28 @@ export default function Waitlist() {
             </div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-l-4 border-l-warning hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, status: "pending", page: 1 }))}>
+        <Card className="glass-card border-l-4 border-l-warning hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, status: "waitlist", page: 1 }))}>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-warning">
                 <Clock className="h-6 w-6 text-warning-foreground" />
               </div>
               <div>
-                <p className="text-3xl font-bold text-foreground">{counts.pending}</p>
-                <p className="text-sm text-muted-foreground">Pending</p>
+                <p className="text-3xl font-bold text-foreground">{counts.waitlist ?? 0}</p>
+                <p className="text-sm text-muted-foreground">Waitlist</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-l-4 border-l-primary hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, status: "approved", page: 1 }))}>
+        <Card className="glass-card border-l-4 border-l-primary hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, status: "newsletter", page: 1 }))}>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-info">
                 <CheckCircle className="h-6 w-6 text-info-foreground" />
               </div>
               <div>
-                <p className="text-3xl font-bold text-foreground">{counts.approved}</p>
-                <p className="text-sm text-muted-foreground">Approved</p>
+                <p className="text-3xl font-bold text-foreground">{counts.newsletter ?? 0}</p>
+                <p className="text-sm text-muted-foreground">Newsletter only</p>
               </div>
             </div>
           </CardContent>
@@ -179,9 +174,8 @@ export default function Waitlist() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="waitlist">Waitlist</SelectItem>
+                  <SelectItem value="newsletter">Newsletter</SelectItem>
                 </SelectContent>
               </Select>
               <Button size="sm" onClick={handleSearch}>Search</Button>
@@ -219,7 +213,7 @@ export default function Waitlist() {
                 </TableRow>
               ) : (
                 entries.map((entry) => {
-                  const sc = statusConfig[entry.status] || statusConfig.pending;
+                  const sc = statusConfig[entry.status] || { color: "bg-muted text-muted-foreground border-border", icon: Clock };
                   const StatusIcon = sc.icon;
                   return (
                     <TableRow key={entry.id} className="border-border/30 hover:bg-card/50">
@@ -246,24 +240,6 @@ export default function Waitlist() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {entry.status !== "approved" && (
-                              <DropdownMenuItem
-                                onClick={() => updateStatus.mutate({ id: entry.id, status: "approved" })}
-                                className="gap-2"
-                              >
-                                <CheckCircle className="h-4 w-4 text-primary" />
-                                Approve
-                              </DropdownMenuItem>
-                            )}
-                            {entry.status !== "rejected" && (
-                              <DropdownMenuItem
-                                onClick={() => updateStatus.mutate({ id: entry.id, status: "rejected" })}
-                                className="gap-2"
-                              >
-                                <XCircle className="h-4 w-4 text-destructive" />
-                                Reject
-                              </DropdownMenuItem>
-                            )}
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="gap-2 text-destructive">

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeAdmin } from "@/lib/adminApi";
 
 export interface AdminUser {
   id: string;
@@ -22,6 +22,7 @@ export interface AdminUsersFilters {
   search: string;
   role: string;
   verified: string;
+  status: string;
   page: number;
   pageSize: number;
   sortBy: string;
@@ -34,6 +35,7 @@ export interface AdminUsersResponse {
   page: number;
   pageSize: number;
   stats: {
+    totalUsers?: number;
     totalAdmins: number;
     totalVerified: number;
     totalSuspended: number;
@@ -45,6 +47,7 @@ export function useAdminUsers(filters?: AdminUsersFilters) {
     search: "",
     role: "",
     verified: "",
+    status: "",
     page: 1,
     pageSize: 20,
     sortBy: "created_at",
@@ -54,28 +57,20 @@ export function useAdminUsers(filters?: AdminUsersFilters) {
 
   return useQuery({
     queryKey: ["admin", "users", f],
-    queryFn: async (): Promise<AdminUsersResponse> => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const params = new URLSearchParams({
-        page: String(f.page),
-        pageSize: String(f.pageSize),
-        sortBy: f.sortBy,
-        sortOrder: f.sortOrder,
-      });
-      if (f.search) params.set("search", f.search);
-      if (f.role) params.set("role", f.role);
-      if (f.verified) params.set("verified", f.verified);
-
-      const response = await supabase.functions.invoke("admin-users?" + params.toString(), {
-        method: "GET",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-
-      if (response.error) throw new Error(response.error.message || "Failed to fetch users");
-      return response.data;
-    },
+    queryFn: () =>
+      invokeAdmin<AdminUsersResponse>("admin-users", {
+        query: {
+          page: f.page,
+          pageSize: f.pageSize,
+          sortBy: f.sortBy,
+          sortOrder: f.sortOrder,
+          search: f.search,
+          role: f.role,
+          verified: f.verified,
+          status: f.status,
+        },
+      }),
+    placeholderData: (previous) => previous,
     staleTime: 30000,
   });
 }

@@ -99,28 +99,47 @@ export function useAdminAuth() {
     };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  /**
+   * Step 1: password. If the account has a verified authenticator-app factor
+   * the session is only AAL1 at this point, so we stop and ask for the code
+   * (verifyMfa) instead of failing the admin check. Accounts without a factor
+   * continue as before.
+   */
+  const signIn = async (email: string, password: string): Promise<{ mfaRequired: boolean; factorId?: string }> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
 
-    if (error) {
-      throw error;
+    const { data: factors, error: factorError } = await supabase.auth.mfa.listFactors();
+    if (factorError) {
+      await supabase.auth.signOut();
+      throw new Error('Could not check two-factor status. Please try again.');
     }
+    const totp = factors?.totp?.find((f) => f.status === 'verified');
+    if (totp) return { mfaRequired: true, factorId: totp.id };
 
+    await requireAdminOrSignOut();
+    return { mfaRequired: false };
+  };
+
+  /** Step 2 (only when mfaRequired): the 6-digit code from the authenticator app. */
+  const verifyMfa = async (factorId: string, code: string) => {
+    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
+    if (challengeError) throw challengeError;
+    const { error } = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.id, code: code.trim() });
+    if (error) throw new Error('That code was not accepted. Check the code and try again.');
+    await requireAdminOrSignOut();
+  };
+
+  const requireAdminOrSignOut = async () => {
     const { data: isAdmin, error: roleError } = await supabase.rpc('is_admin');
-
     if (roleError) {
+      await supabase.auth.signOut();
       throw new Error('Failed to verify admin access');
     }
-
     if (!isAdmin) {
       await supabase.auth.signOut();
       throw new Error('Access denied. Admin privileges required.');
     }
-
-    return data;
   };
 
   const signOut = async () => {
@@ -131,6 +150,7 @@ export function useAdminAuth() {
   return {
     ...state,
     signIn,
+    verifyMfa,
     signOut,
   };
 }

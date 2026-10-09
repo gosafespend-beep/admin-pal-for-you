@@ -1,70 +1,52 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { clampInt, errorResponse, json, listAllUsers, requireAdmin, selectAll } from "../_shared/http.ts";
+
+const SORTABLE = new Set(["created_at", "last_sign_in_at", "email", "display_name", "updated_at"]);
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (!cors) return forbidden();
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let requestId: string | undefined;
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'No authorization header' }),
-        { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
-    }
+    const ctx = await requireAdmin(req, cors);
+    if (ctx instanceof Response) return ctx;
+    requestId = ctx.meta.requestId;
+    const { adminClient } = ctx;
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const url = new URL(req.url);
+    const page = clampInt(url.searchParams.get("page"), 1, 1, 10_000);
+    const pageSize = clampInt(url.searchParams.get("pageSize"), 20, 1, 100);
+    const search = (url.searchParams.get("search") || "").trim().toLowerCase().slice(0, 100);
+    const roleFilter = url.searchParams.get("role") || "";
+    const verifiedFilter = url.searchParams.get("verified") || "";
+    const statusFilter = url.searchParams.get("status") || "";
+    const sortParam = url.searchParams.get("sortBy") || "created_at";
+    const sortBy = SORTABLE.has(sortParam) ? sortParam : "created_at";
+    const sortOrder = url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    })
-    const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
-    if (adminError || !isAdmin) {
-      return new Response(
-        JSON.stringify({ error: 'Access denied' }),
-        { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
-    }
+    // The admin API has no server-side search or sort, so we page through every
+    // user (not just the first 1,000) and filter in memory.
+    const [users, profiles, settings, roles] = await Promise.all([
+      listAllUsers(adminClient),
+      selectAll(adminClient, "profiles", "user_id, display_name, avatar_url"),
+      selectAll(adminClient, "user_settings", "user_id, currency, theme, date_format"),
+      selectAll(adminClient, "user_roles", "user_id, role"),
+    ]);
 
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
-    const url = new URL(req.url)
-    const page = parseInt(url.searchParams.get('page') || '1')
-    const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '20'), 100)
-    const search = url.searchParams.get('search') || ''
-    const roleFilter = url.searchParams.get('role') || ''
-    const verifiedFilter = url.searchParams.get('verified') || ''
-    const sortBy = url.searchParams.get('sortBy') || 'created_at'
-    const sortOrder = url.searchParams.get('sortOrder') || 'desc'
+    const profilesMap = new Map(profiles.map((p) => [p.user_id, p]));
+    const settingsMap = new Map(settings.map((s) => [s.user_id, s]));
+    const rolesMap = new Map<string, string[]>();
+    for (const r of roles) rolesMap.set(r.user_id, [...(rolesMap.get(r.user_id) ?? []), r.role]);
 
-    // Fetch auth users (Supabase admin API doesn't support pagination well, so we fetch all and paginate in memory)
-    const { data: { users }, error: usersError } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
-    if (usersError) throw usersError
+    const now = Date.now();
+    const isSuspended = (u: { banned_until: string | null }) => Boolean(u.banned_until && new Date(u.banned_until).getTime() > now);
 
-    // Fetch enrichment data in parallel
-    const [profilesResult, settingsResult, rolesResult] = await Promise.all([
-      adminClient.from('profiles').select('user_id, display_name, avatar_url'),
-      adminClient.from('user_settings').select('user_id, currency, theme, date_format'),
-      adminClient.from('user_roles').select('user_id, role'),
-    ])
-
-    const profilesMap = new Map((profilesResult.data || []).map(p => [p.user_id, p]))
-    const settingsMap = new Map((settingsResult.data || []).map(s => [s.user_id, s]))
-    const rolesMap = new Map<string, string[]>()
-    for (const r of (rolesResult.data || [])) {
-      const existing = rolesMap.get(r.user_id) || []
-      existing.push(r.role)
-      rolesMap.set(r.user_id, existing)
-    }
-
-    // Enrich users
-    let enrichedUsers = users.map(user => {
-      const profile = profilesMap.get(user.id)
-      const settings = settingsMap.get(user.id)
-      const userRoles = rolesMap.get(user.id) || []
+    const all = users.map((user) => {
+      const profile = profilesMap.get(user.id);
+      const s = settingsMap.get(user.id);
+      const userRoles = rolesMap.get(user.id) ?? [];
       return {
         id: user.id,
         email: user.email,
@@ -75,66 +57,53 @@ Deno.serve(async (req) => {
         banned_until: user.banned_until,
         display_name: profile?.display_name || null,
         avatar_url: profile?.avatar_url || null,
-        currency: settings?.currency || 'USD',
-        theme: settings?.theme || 'dark',
-        date_format: settings?.date_format || 'MM/dd/yyyy',
+        currency: s?.currency || "USD",
+        theme: s?.theme || "dark",
+        date_format: s?.date_format || "MM/dd/yyyy",
         roles: userRoles,
-        is_admin: userRoles.includes('admin'),
-      }
-    })
+        is_admin: userRoles.includes("admin"),
+      };
+    });
 
-    // Apply filters
+    let filtered = all;
     if (search) {
-      const s = search.toLowerCase()
-      enrichedUsers = enrichedUsers.filter(u =>
-        u.email?.toLowerCase().includes(s) ||
-        u.display_name?.toLowerCase().includes(s)
-      )
+      filtered = filtered.filter((u) => u.email?.toLowerCase().includes(search) || u.display_name?.toLowerCase().includes(search));
     }
-    if (roleFilter === 'admin') {
-      enrichedUsers = enrichedUsers.filter(u => u.is_admin)
-    } else if (roleFilter === 'user') {
-      enrichedUsers = enrichedUsers.filter(u => !u.is_admin)
-    }
-    if (verifiedFilter === 'verified') {
-      enrichedUsers = enrichedUsers.filter(u => u.email_confirmed_at)
-    } else if (verifiedFilter === 'unverified') {
-      enrichedUsers = enrichedUsers.filter(u => !u.email_confirmed_at)
-    }
+    if (roleFilter === "admin") filtered = filtered.filter((u) => u.is_admin);
+    else if (roleFilter === "user") filtered = filtered.filter((u) => !u.is_admin);
+    if (verifiedFilter === "verified") filtered = filtered.filter((u) => u.email_confirmed_at);
+    else if (verifiedFilter === "unverified") filtered = filtered.filter((u) => !u.email_confirmed_at);
+    if (statusFilter === "suspended") filtered = filtered.filter(isSuspended);
+    else if (statusFilter === "active") filtered = filtered.filter((u) => !isSuspended(u));
 
-    // Sort
-    enrichedUsers.sort((a, b) => {
-      const aVal = (a as Record<string, unknown>)[sortBy] as string || ''
-      const bVal = (b as Record<string, unknown>)[sortBy] as string || ''
-      const cmp = aVal > bVal ? 1 : aVal < bVal ? -1 : 0
-      return sortOrder === 'desc' ? -cmp : cmp
-    })
+    filtered.sort((a, b) => {
+      const aVal = ((a as Record<string, unknown>)[sortBy] as string) || "";
+      const bVal = ((b as Record<string, unknown>)[sortBy] as string) || "";
+      const cmp = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      return sortOrder === "desc" ? -cmp : cmp;
+    });
 
-    const total = enrichedUsers.length
-    const totalAdmins = enrichedUsers.filter(u => u.is_admin).length
-    const totalVerified = enrichedUsers.filter(u => u.email_confirmed_at).length
-    const totalSuspended = enrichedUsers.filter(u => u.banned_until && new Date(u.banned_until) > new Date()).length
+    const offset = (page - 1) * pageSize;
 
-    // Paginate
-    const offset = (page - 1) * pageSize
-    const paginatedUsers = enrichedUsers.slice(offset, offset + pageSize)
-
-    return new Response(
-      JSON.stringify({
-        users: paginatedUsers,
-        total,
+    return json(
+      {
+        users: filtered.slice(offset, offset + pageSize),
+        total: filtered.length,
         page,
         pageSize,
-        stats: { totalAdmins, totalVerified, totalSuspended },
-      }),
-      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
-    )
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    console.error('Error in admin-users:', error)
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
-    )
+        // Whole-population figures: they used to be computed on the filtered
+        // list, so the summary cards changed whenever a filter was applied.
+        stats: {
+          totalUsers: all.length,
+          totalAdmins: all.filter((u) => u.is_admin).length,
+          totalVerified: all.filter((u) => u.email_confirmed_at).length,
+          totalSuspended: all.filter(isSuspended).length,
+        },
+      },
+      200,
+      cors,
+    );
+  } catch (error) {
+    return errorResponse(error, cors, requestId, "admin-users");
   }
-})
+});

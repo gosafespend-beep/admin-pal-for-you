@@ -1,60 +1,25 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { errorResponse, HttpError, isUuid, json, requireAdmin } from "../_shared/http.ts";
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (!cors) return forbidden();
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let requestId: string | undefined;
   try {
-    let userId: string | null = null
-    if (req.method === 'POST') {
-      const body = await req.json()
-      userId = body.userId
-    } else {
-      const url = new URL(req.url)
-      userId = url.searchParams.get('userId')
-    }
+    const ctx = await requireAdmin(req, cors);
+    if (ctx instanceof Response) return ctx;
+    requestId = ctx.meta.requestId;
+    const { adminClient } = ctx;
 
-    if (!userId) {
-      return new Response(
-        JSON.stringify({ error: 'userId is required' }),
-        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
-    }
+    const userId = req.method === "POST"
+      ? (await req.json().catch(() => ({}))).userId
+      : new URL(req.url).searchParams.get("userId");
+    if (!isUuid(userId)) throw new HttpError(400, "A valid userId is required");
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'No authorization header' }),
-        { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    })
-    const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
-    if (adminError || !isAdmin) {
-      return new Response(
-        JSON.stringify({ error: 'Access denied' }),
-        { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
-
-    const { data: { user }, error: userError } = await adminClient.auth.admin.getUserById(userId)
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'User not found' }),
-        { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
-    }
+    const { data: { user }, error: userError } = await adminClient.auth.admin.getUserById(userId);
+    if (userError || !user) throw new HttpError(404, "User not found");
 
     // Fetch admin-relevant data only
     const [
@@ -69,22 +34,22 @@ Deno.serve(async (req) => {
       subscriptionResult,
       sessionsResult,
     ] = await Promise.all([
-      adminClient.from('profiles').select('*').eq('user_id', userId).single(),
-      adminClient.from('user_settings').select('*').eq('user_id', userId).single(),
+      adminClient.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+      adminClient.from('user_settings').select('*').eq('user_id', userId).maybeSingle(),
       adminClient.from('user_roles').select('*').eq('user_id', userId),
       adminClient.from('expenses').select('id', { count: 'exact', head: true }).eq('user_id', userId),
       adminClient.from('incomes').select('id', { count: 'exact', head: true }).eq('user_id', userId),
       adminClient.from('transfers').select('id', { count: 'exact', head: true }).eq('user_id', userId),
       adminClient.from('expenses').select('id, amount, category, date, note').eq('user_id', userId).order('date', { ascending: false }).limit(10),
       adminClient.from('incomes').select('id, amount, source, category, date, note').eq('user_id', userId).order('date', { ascending: false }).limit(10),
-      adminClient.from('subscriptions').select('*').eq('user_id', userId).single(),
+      adminClient.from('subscriptions').select('*').eq('user_id', userId).maybeSingle(),
       adminClient.rpc('list_user_sessions', { p_user_id: userId }),
     ])
 
-    const recentTransactions = [
-      ...(expensesResult.data || []).map((e: Record<string, unknown>) => ({ ...e, type: 'expense' })),
-      ...(incomesResult.data || []).map((i: Record<string, unknown>) => ({ ...i, type: 'income' })),
-    ].sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime()).slice(0, 10)
+    const recentTransactions = ([
+      ...(expensesResult.data || []).map((e: Record<string, unknown>) => ({ ...e, type: 'expense' as string })),
+      ...(incomesResult.data || []).map((i: Record<string, unknown>) => ({ ...i, type: 'income' as string })),
+    ] as Array<Record<string, unknown>>).sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime()).slice(0, 10)
 
     const userRoles = rolesResult.data?.map((r: Record<string, unknown>) => r.role) || []
 
@@ -124,16 +89,8 @@ Deno.serve(async (req) => {
       })),
     }
 
-    return new Response(
-      JSON.stringify(response),
-      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
-    )
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    console.error('Error in admin-user-detail:', error)
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
-    )
+    return json(response, 200, cors);
+  } catch (error) {
+    return errorResponse(error, cors, requestId, "admin-user-detail");
   }
-})
+});

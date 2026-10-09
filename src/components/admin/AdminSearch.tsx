@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText } from "lucide-react";
+import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -18,7 +18,11 @@ const pages = [
   { name: "Subscriptions", path: "/subscriptions", icon: CreditCard, keywords: "plans billing" },
   { name: "Waitlist", path: "/waitlist", icon: ClipboardList, keywords: "signups emails" },
   { name: "Settings", path: "/settings", icon: Settings, keywords: "config health admins" },
+  { name: "Analytics", path: "/analytics", icon: BarChart3, keywords: "funnel retention churn events product" },
+  { name: "Audit Log", path: "/audit-log", icon: ScrollText, keywords: "history actions security who did" },
+  { name: "Ebook", path: "/ebook", icon: BookOpen, keywords: "download lead magnet" },
   { name: "Blog", path: "/blog", icon: FileText, keywords: "articles posts content cms" },
+  { name: "New blog post", path: "/blog/new", icon: FileText, keywords: "write article create" },
 ];
 
 export function AdminSearch() {

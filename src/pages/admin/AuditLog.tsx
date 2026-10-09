@@ -28,6 +28,30 @@ const ACTION_COLORS: Record<string, string> = {
   add_note: "bg-info/10 text-info border-info/20",
 };
 
+const FAILED = "bg-destructive/10 text-destructive border-destructive/20";
+
+// Entries are written as "<action>" (intent), then "<action>_completed" or
+// "<action>_failed" (outcome). Colour by the base action; failures are always red.
+function actionColor(action: string): string {
+  if (action.endsWith("_failed")) return FAILED;
+  const base = action.replace(/_completed$/, "");
+  if (ACTION_COLORS[base]) return ACTION_COLORS[base];
+  const prefix = Object.keys(ACTION_COLORS).find((k) => base.startsWith(k));
+  if (prefix) return ACTION_COLORS[prefix];
+  if (base.includes("delete") || base.includes("revoke")) return ACTION_COLORS.delete;
+  if (base.includes("grant")) return ACTION_COLORS.promote;
+  if (base.startsWith("export")) return ACTION_COLORS.suspend;
+  return "bg-muted text-muted-foreground border-border";
+}
+
+function describe(entry: { details: Record<string, unknown> | null }): string {
+  const d = entry.details ?? {};
+  const reason = typeof d.reason === "string" ? d.reason : "";
+  const rest = Object.entries(d).filter(([k]) => k !== "reason" && k !== "_meta" && k !== "before" && k !== "after");
+  const extra = rest.map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`).join(" · ");
+  return [reason, extra].filter(Boolean).join(" — ") || "—";
+}
+
 export default function AuditLog() {
   const [filters, setFilters] = useState<AuditLogFilters>({
     page: 1,
@@ -53,7 +77,7 @@ export default function AuditLog() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Audit Log</h1>
-        <p className="text-muted-foreground">Track all admin actions for accountability</p>
+        <p className="text-muted-foreground">Every admin action is recorded before it happens, then marked completed or failed. Exports of personal data are logged too.</p>
       </div>
 
       {/* Filters */}
@@ -66,15 +90,9 @@ export default function AuditLog() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Actions</SelectItem>
-                <SelectItem value="suspend">Suspend</SelectItem>
-                <SelectItem value="unsuspend">Unsuspend</SelectItem>
-                <SelectItem value="delete">Delete</SelectItem>
-                <SelectItem value="promote">Promote</SelectItem>
-                <SelectItem value="demote">Demote</SelectItem>
-                <SelectItem value="extend_trial">Extend Trial</SelectItem>
-                <SelectItem value="cancel">Cancel</SelectItem>
-                <SelectItem value="reactivate">Reactivate</SelectItem>
-                <SelectItem value="add_note">Add Note</SelectItem>
+                {(data?.facets.actions ?? []).map((a) => (
+                  <SelectItem key={a} value={a}>{a.replace(/_/g, " ")}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={filters.targetType || "all"} onValueChange={(v) => setFilters(f => ({ ...f, targetType: v === "all" ? "" : v, page: 1 }))}>
@@ -83,9 +101,9 @@ export default function AuditLog() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Targets</SelectItem>
-                <SelectItem value="user">User</SelectItem>
-                <SelectItem value="subscription">Subscription</SelectItem>
-                <SelectItem value="waitlist">Waitlist</SelectItem>
+                {(data?.facets.targetTypes ?? []).map((t) => (
+                  <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -129,7 +147,7 @@ export default function AuditLog() {
                     </TableCell>
                     <TableCell className="text-sm font-medium">{entry.adminEmail}</TableCell>
                     <TableCell>
-                      <Badge className={cn("capitalize", ACTION_COLORS[entry.action] || "bg-muted text-muted-foreground border-border")}>
+                      <Badge className={cn("capitalize", actionColor(entry.action))}>
                         {entry.action.replace(/_/g, " ")}
                       </Badge>
                     </TableCell>
@@ -139,8 +157,8 @@ export default function AuditLog() {
                         {entry.target_id.slice(0, 8)}…
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                      {entry.details ? JSON.stringify(entry.details).slice(0, 60) : "—"}
+                    <TableCell className="text-sm text-muted-foreground max-w-[320px]" title={describe(entry)}>
+                      <span className="line-clamp-2">{describe(entry)}</span>
                     </TableCell>
                   </TableRow>
                 ))}

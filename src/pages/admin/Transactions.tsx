@@ -30,13 +30,15 @@ import { cn } from "@/lib/utils";
 import { useAdminTransactions, TransactionFilters } from "@/hooks/admin/useAdminTransactions";
 import { AdminErrorState } from "@/components/admin/AdminErrorState";
 import { MobileCardList } from "@/components/admin/MobileCardList";
+import { useExportCsv } from "@/hooks/admin/useExportCsv";
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 0,
-  }).format(amount);
+// Amounts are in the account's own currency (the server attaches it to each row).
+function formatCurrency(amount: number, currency = 'USD'): string {
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
+  } catch {
+    return `${currency} ${amount}`;
+  }
 }
 
 function TransactionRowSkeleton({ cols = 5 }: { cols?: number }) {
@@ -47,22 +49,6 @@ function TransactionRowSkeleton({ cols = 5 }: { cols?: number }) {
       ))}
     </TableRow>
   );
-}
-
-function exportToCSV(data: Record<string, unknown>[], filename: string) {
-  if (!data.length) return;
-  const headers = Object.keys(data[0]);
-  const csvContent = [
-    headers.join(','),
-    ...data.map(row => headers.map(h => `"${String(row[h] ?? '')}"`).join(','))
-  ].join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${filename}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 export default function Transactions() {
@@ -77,6 +63,7 @@ export default function Transactions() {
   });
 
   const [searchInput, setSearchInput] = useState("");
+  const exportCsv = useExportCsv();
 
   const { data, isLoading, error, refetch } = useAdminTransactions(filters);
 
@@ -121,7 +108,12 @@ export default function Transactions() {
             <RefreshCw className="h-4 w-4" />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportToCSV(items as Record<string, unknown>[], `${filters.type}-export`)}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportCsv({
+            resource: "transactions",
+            filename: `${filters.type}-export`,
+            rows: items as Array<Record<string, unknown>>,
+            filters: { type: filters.type, search: filters.search, startDate: filters.startDate, endDate: filters.endDate, userId: filters.userId },
+          })}>
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
@@ -216,7 +208,7 @@ export default function Transactions() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className={cn("font-semibold", filters.type === "expenses" ? "text-pink" : filters.type === "incomes" ? "text-primary" : "text-purple")}>
-                      {filters.type === "expenses" ? "-" : filters.type === "incomes" ? "+" : ""}{formatCurrency(Number(item.amount))}
+                      {filters.type === "expenses" ? "-" : filters.type === "incomes" ? "+" : ""}{formatCurrency(Number(item.amount), String(item.currency || 'USD'))}
                     </span>
                     <span className="text-xs text-muted-foreground">{format(new Date(item.date as string), 'MMM d, yyyy')}</span>
                   </div>
@@ -265,7 +257,7 @@ export default function Transactions() {
                       </TableCell>
                       <TableCell>
                         <span className={cn("font-semibold", filters.type === "expenses" ? "text-pink" : filters.type === "incomes" ? "text-primary" : "text-purple")}>
-                          {filters.type === "expenses" ? "-" : filters.type === "incomes" ? "+" : ""}{formatCurrency(Number(item.amount))}
+                          {filters.type === "expenses" ? "-" : filters.type === "incomes" ? "+" : ""}{formatCurrency(Number(item.amount), String(item.currency || 'USD'))}
                         </span>
                       </TableCell>
                       <TableCell>

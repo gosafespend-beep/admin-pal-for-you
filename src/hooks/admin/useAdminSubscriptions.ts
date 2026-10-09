@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeAdmin } from "@/lib/adminApi";
 import { toast } from "@/hooks/use-toast";
 
 interface Subscription {
@@ -59,68 +59,40 @@ interface Filters {
 export function useAdminSubscriptions(filters: Filters) {
   return useQuery<SubscriptionResponse>({
     queryKey: ["admin", "subscriptions", filters],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const params = new URLSearchParams({
-        page: filters.page.toString(),
-        pageSize: filters.pageSize.toString(),
-      });
-      if (filters.status) params.set("status", filters.status);
-      if (filters.search) params.set("search", filters.search);
-
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-subscriptions?${params}`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-        }
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error || "Failed to fetch subscriptions");
-      }
-
-      return res.json();
-    },
+    queryFn: () =>
+      invokeAdmin<SubscriptionResponse>("admin-subscriptions", {
+        query: {
+          page: filters.page,
+          pageSize: filters.pageSize,
+          status: filters.status,
+          search: filters.search,
+        },
+      }),
+    placeholderData: (previous) => previous,
   });
 }
 
-type SubscriptionAction = 'extend_trial' | 'cancel' | 'reactivate';
+type SubscriptionAction = "extend_trial" | "cancel" | "reactivate";
 
 export function useSubscriptionAction() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ subscriptionId, action, data }: { subscriptionId: string; action: SubscriptionAction; data?: Record<string, unknown> }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-subscriptions`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({ subscriptionId, action, data }),
-        }
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error || "Action failed");
-      }
-
-      return res.json();
-    },
+    mutationFn: ({
+      subscriptionId,
+      action,
+      data,
+      reason,
+    }: {
+      subscriptionId: string;
+      action: SubscriptionAction;
+      data?: Record<string, unknown>;
+      reason: string;
+    }) =>
+      invokeAdmin<{ message: string }>("admin-subscriptions", {
+        method: "POST",
+        body: { subscriptionId, action, data, reason },
+      }),
     onSuccess: (data) => {
       toast({ title: "Success", description: data.message });
       queryClient.invalidateQueries({ queryKey: ["admin", "subscriptions"] });

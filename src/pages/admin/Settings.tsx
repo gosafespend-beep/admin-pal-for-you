@@ -20,26 +20,16 @@ import {
   Upload,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { useSystemHealth, useAdminList, useAddAdmin, useRemoveAdmin, useBlogImageSettings, useUpdateBlogImageSettings } from "@/hooks/admin/useAdminSettings";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { BlogImage } from "@/components/admin/BlogImage";
+import { TwoFactorCard } from "@/components/admin/TwoFactorCard";
+import { ReasonConfirmDialog } from "@/components/admin/ReasonConfirmDialog";
 
 function HealthStatusIcon({ status }: { status: string }) {
   if (status === "healthy") return <CheckCircle className="h-4 w-4 text-primary" />;
@@ -51,7 +41,6 @@ const serviceConfig = [
   { key: "database", label: "Database", icon: Database, gradient: "gradient-primary" },
   { key: "authentication", label: "Authentication", icon: Shield, gradient: "gradient-info" },
   { key: "storage", label: "Storage", icon: HardDrive, gradient: "gradient-purple" },
-  { key: "edgeFunctions", label: "Edge Functions", icon: Zap, gradient: "gradient-warning" },
 ];
 
 const supabaseLinks = [
@@ -72,6 +61,8 @@ export default function Settings() {
   const { data: blogImageSettings, isLoading: blogImageLoading } = useBlogImageSettings();
   const updateBlogImageSettings = useUpdateBlogImageSettings();
   const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<{ userId: string; email: string } | null>(null);
   const [defaultBlogImage, setDefaultBlogImage] = useState("");
   const [uploadingBlogImage, setUploadingBlogImage] = useState(false);
   const blogImageInputRef = useRef<HTMLInputElement>(null);
@@ -118,21 +109,23 @@ export default function Settings() {
     }
   };
 
-  const handleAddAdmin = async () => {
-    if (!newAdminEmail.trim()) return;
+  const handleAddAdmin = async (reason: string) => {
     try {
-      await addAdmin.mutateAsync(newAdminEmail.trim());
+      await addAdmin.mutateAsync({ email: newAdminEmail.trim(), reason });
       toast({ title: "Admin added", description: `${newAdminEmail} is now an admin.` });
       setNewAdminEmail("");
+      setAddOpen(false);
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to add admin", variant: "destructive" });
     }
   };
 
-  const handleRemoveAdmin = async (userId: string, email: string) => {
+  const handleRemoveAdmin = async (reason: string) => {
+    if (!removeTarget) return;
     try {
-      await removeAdmin.mutateAsync(userId);
-      toast({ title: "Admin removed", description: `${email} is no longer an admin.` });
+      await removeAdmin.mutateAsync({ userId: removeTarget.userId, reason });
+      toast({ title: "Admin removed", description: `${removeTarget.email} is no longer an admin.` });
+      setRemoveTarget(null);
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to remove admin", variant: "destructive" });
     }
@@ -162,7 +155,7 @@ export default function Settings() {
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {serviceConfig.map((svc) => {
               const check = health?.checks[svc.key];
               const isHealthy = check?.status === "healthy";
@@ -229,11 +222,11 @@ export default function Settings() {
                 placeholder="Enter user email to grant admin access..."
                 value={newAdminEmail}
                 onChange={(e) => setNewAdminEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddAdmin()}
+                onKeyDown={(e) => e.key === "Enter" && newAdminEmail.trim() && setAddOpen(true)}
                 className="bg-card/50"
               />
             </div>
-            <Button onClick={handleAddAdmin} disabled={addAdmin.isPending || !newAdminEmail.trim()}>
+            <Button onClick={() => setAddOpen(true)} disabled={addAdmin.isPending || !newAdminEmail.trim()}>
               {addAdmin.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
               Add Admin
             </Button>
@@ -267,30 +260,14 @@ export default function Settings() {
                       </p>
                     </div>
                   </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Remove Admin Access</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Remove admin privileges from <strong>{admin.email}</strong>? They will no longer be able to access this panel.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          onClick={() => handleRemoveAdmin(admin.userId, admin.email)}
-                        >
-                          Remove
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => setRemoveTarget({ userId: admin.userId, email: admin.email })}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))
             )}
@@ -362,34 +339,28 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      {/* Security Overview */}
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-info" />
-            Security
-          </CardTitle>
-          <CardDescription>Security configuration overview</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {[
-            { label: "Row Level Security", desc: "Database-level security policies", color: "primary" },
-            { label: "Admin Role Verification", desc: "Server-side role validation via Edge Functions", color: "info" },
-            { label: "Edge Function Security", desc: "Admin-only API endpoints with service role", color: "purple" },
-          ].map((item) => (
-            <div key={item.label} className={`flex items-center justify-between p-4 rounded-xl bg-${item.color}/5 border border-${item.color}/20`}>
-              <div>
-                <Label className="text-foreground font-medium">{item.label}</Label>
-                <p className="text-xs text-muted-foreground">{item.desc}</p>
-              </div>
-              <Badge className={`bg-${item.color}/10 text-${item.color} border border-${item.color}/20`}>
-                <CheckCircle className="mr-1 h-3 w-3" />
-                Enabled
-              </Badge>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      {/* Two-factor sign-in (real status, with enrolment) */}
+      <TwoFactorCard />
+
+      <ReasonConfirmDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="Grant admin access"
+        description={<>Give <strong>{newAdminEmail.trim()}</strong> full access to this panel, including customer data. They need a confirmed email address.</>}
+        confirmLabel="Grant access"
+        pending={addAdmin.isPending}
+        onConfirm={({ reason }) => handleAddAdmin(reason)}
+      />
+      <ReasonConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        title="Remove admin access"
+        description={<>Remove admin privileges from <strong>{removeTarget?.email}</strong>? They will no longer be able to access this panel. The last admin can't be removed.</>}
+        confirmLabel="Remove"
+        destructive
+        pending={removeAdmin.isPending}
+        onConfirm={({ reason }) => handleRemoveAdmin(reason)}
+      />
 
       {/* Quick Links */}
       <Card className="glass-card">

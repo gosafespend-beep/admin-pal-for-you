@@ -107,6 +107,7 @@ Deno.serve(async (req) => {
         cancelled: cancelledSubs,
         expired: expiredSubs,
         trialConversionRate: Math.round(trialConversionRate * 10) / 10,
+        conversionSample: convertedOrChurned,
       },
       engagement: {
         activeUsers7d: Number(engagement.active_7d || 0),

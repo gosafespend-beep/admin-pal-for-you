@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeAdmin } from "@/lib/adminApi";
 import { toast } from "sonner";
 
 export interface WaitlistFilters {
@@ -22,39 +22,17 @@ interface WaitlistResponse {
   total: number;
   page: number;
   pageSize: number;
-  statusCounts: {
-    total: number;
-    pending: number;
-    approved: number;
-    rejected: number;
-  };
-}
-
-async function getAuthHeaders() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error("Not authenticated");
-  return { Authorization: `Bearer ${session.access_token}` };
+  statusCounts: Record<string, number>;
 }
 
 export function useAdminWaitlist(filters: WaitlistFilters) {
   return useQuery({
     queryKey: ["admin", "waitlist", filters],
-    queryFn: async (): Promise<WaitlistResponse> => {
-      const headers = await getAuthHeaders();
-      const params = new URLSearchParams({
-        page: String(filters.page),
-        pageSize: String(filters.pageSize),
-      });
-      if (filters.search) params.set("search", filters.search);
-      if (filters.status) params.set("status", filters.status);
-
-      const response = await supabase.functions.invoke("admin-waitlist?" + params.toString(), {
-        method: "GET",
-        headers,
-      });
-      if (response.error) throw new Error(response.error.message);
-      return response.data;
-    },
+    queryFn: () =>
+      invokeAdmin<WaitlistResponse>("admin-waitlist", {
+        query: { page: filters.page, pageSize: filters.pageSize, search: filters.search, status: filters.status },
+      }),
+    placeholderData: (previous) => previous,
     staleTime: 15000,
   });
 }
@@ -63,16 +41,8 @@ export function useWaitlistActions() {
   const queryClient = useQueryClient();
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const headers = await getAuthHeaders();
-      const response = await supabase.functions.invoke("admin-waitlist", {
-        method: "PATCH",
-        headers,
-        body: { id, status },
-      });
-      if (response.error) throw new Error(response.error.message);
-      return response.data;
-    },
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      invokeAdmin("admin-waitlist", { method: "PATCH", body: { id, status } }),
     onSuccess: (_, vars) => {
       toast.success(`Entry ${vars.status} successfully`);
       queryClient.invalidateQueries({ queryKey: ["admin", "waitlist"] });
@@ -81,16 +51,7 @@ export function useWaitlistActions() {
   });
 
   const deleteEntry = useMutation({
-    mutationFn: async (id: string) => {
-      const headers = await getAuthHeaders();
-      const response = await supabase.functions.invoke("admin-waitlist", {
-        method: "DELETE",
-        headers,
-        body: { id },
-      });
-      if (response.error) throw new Error(response.error.message);
-      return response.data;
-    },
+    mutationFn: (id: string) => invokeAdmin("admin-waitlist", { method: "DELETE", body: { id } }),
     onSuccess: () => {
       toast.success("Entry deleted");
       queryClient.invalidateQueries({ queryKey: ["admin", "waitlist"] });

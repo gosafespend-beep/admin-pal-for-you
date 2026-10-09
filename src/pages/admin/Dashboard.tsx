@@ -23,15 +23,6 @@ import { AdminErrorState } from "@/components/admin/AdminErrorState";
 import { DashboardAlerts } from "@/components/admin/DashboardAlerts";
 import { Card, CardContent } from "@/components/ui/card";
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
 function formatNumber(num: number): string {
   return new Intl.NumberFormat('en-US').format(num);
 }
@@ -90,7 +81,13 @@ export default function Dashboard() {
     { icon: Zap, label: "Active", value: formatNumber(stats?.subscriptions.active || 0), color: "primary" as const },
     { icon: Clock, label: "Trialing", value: formatNumber(stats?.subscriptions.trialing || 0), color: "info" as const },
     { icon: XCircle, label: "Cancelled", value: formatNumber(stats?.subscriptions.cancelled || 0), color: "destructive" as const },
-    { icon: TrendingUp, label: "Conversion", value: `${stats?.subscriptions.trialConversionRate || 0}%`, color: "purple" as const },
+    {
+      icon: TrendingUp,
+      label: "Trial to paid",
+      // A percentage of a handful of outcomes is noise, so say so instead.
+      value: (stats?.subscriptions.conversionSample ?? 0) >= 10 ? `${stats?.subscriptions.trialConversionRate || 0}%` : "Too few yet",
+      color: "purple" as const,
+    },
     { icon: CalendarDays, label: "New This Week", value: formatNumber(stats?.engagement.newSignupsThisWeek || 0), color: "warning" as const },
   ];
 
@@ -107,11 +104,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground bg-card/50 px-4 py-2 rounded-lg border border-border/50">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-            </span>
-            Live data
+            Refreshes every 5 minutes
           </div>
         </div>
       </div>
@@ -143,16 +136,16 @@ export default function Dashboard() {
               variant="info"
             />
             <StatsCard
-              title="Platform Volume"
-              value={formatCurrency(stats?.overview.platformVolume || 0)}
-              subtitle="Total money tracked"
+              title="Active (30 days)"
+              value={formatNumber(stats?.engagement.activeUsers30d || 0)}
+              subtitle="Signed in this month"
               icon={Wallet}
               variant="purple"
             />
             <StatsCard
-              title="Waitlist"
+              title="Waitlist & newsletter"
               value={formatNumber(stats?.overview.waitlistCount || 0)}
-              subtitle="Pending signups"
+              subtitle="People who signed up before launch"
               icon={ClipboardList}
               variant="warning"
             />
@@ -224,7 +217,7 @@ export default function Dashboard() {
       {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-2">
         <TransactionVolumeChart 
-          data={stats?.charts.monthlyData || []} 
+          data={(stats?.charts.monthlyData || []).map((m) => ({ label: m.label, expenses: m.expenseCount, income: m.incomeCount }))}
           isLoading={isLoading} 
         />
         <UserGrowthChart 

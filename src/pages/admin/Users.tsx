@@ -5,7 +5,6 @@ import {
   Filter, 
   MoreHorizontal, 
   User as UserIcon,
-  Mail,
   Calendar,
   Shield,
   Eye,
@@ -41,6 +40,10 @@ import { MobileCardList } from "@/components/admin/MobileCardList";
 import { BulkActionsBar } from "@/components/admin/BulkActionsBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAdminUserActions } from "@/hooks/admin/useAdminUserDetail";
+import { useExportCsv } from "@/hooks/admin/useExportCsv";
+import { useAdminAuth } from "@/hooks/admin/useAdminAuth";
+import { ReasonConfirmDialog } from "@/components/admin/ReasonConfirmDialog";
+import { toast } from "sonner";
 
 function UserRowSkeleton() {
   return (
@@ -63,21 +66,7 @@ function UserRowSkeleton() {
   );
 }
 
-function exportToCSV(data: AdminUser[], filename: string) {
-  if (!data.length) return;
-  const headers = ['email', 'display_name', 'is_admin', 'email_confirmed_at', 'created_at', 'last_sign_in_at'];
-  const csvContent = [
-    headers.join(','),
-    ...data.map(u => headers.map(h => `"${String(h in u ? (u as unknown as Record<string, unknown>)[h] : '')}"`).join(','))
-  ].join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${filename}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+const EXPORT_COLUMNS = ["email", "display_name", "is_admin", "email_confirmed_at", "created_at", "last_sign_in_at"];
 
 export default function Users() {
   const navigate = useNavigate();
@@ -85,6 +74,7 @@ export default function Users() {
     search: "",
     role: "",
     verified: "",
+    status: "",
     page: 1,
     pageSize: 20,
     sortBy: "created_at",
@@ -92,13 +82,52 @@ export default function Users() {
   });
   const [searchInput, setSearchInput] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const { mutate: performAction, isPending: isActionPending } = useAdminUserActions();
+  const { mutateAsync: performAction, isPending: isActionPending } = useAdminUserActions();
+  const exportCsv = useExportCsv();
+  const { user: currentUser } = useAdminAuth();
+  const [bulkSuspendOpen, setBulkSuspendOpen] = useState(false);
+  const [bulkDays, setBulkDays] = useState("30");
+  const [bulkBusy, setBulkBusy] = useState(false);
   const { data, isLoading, error, refetch } = useAdminUsers(filters);
 
   const users = data?.users || [];
   const total = data?.total || 0;
   const stats = data?.stats || { totalAdmins: 0, totalVerified: 0, totalSuspended: 0 };
   const totalPages = Math.ceil(total / filters.pageSize);
+
+  // Admins and the signed-in admin can never be bulk-suspended; the server
+  // refuses them too, this just keeps them out of the request.
+  const selectedUsers = users.filter((u) => selectedIds.has(u.id));
+  const suspendable = selectedUsers.filter((u) => !u.is_admin && u.id !== currentUser?.id);
+
+  const runBulkSuspend = async (reason: string) => {
+    const days = Number(bulkDays);
+    setBulkBusy(true);
+    let ok = 0;
+    let failed = 0;
+    for (const u of suspendable) {
+      try {
+        await performAction({ userId: u.id, action: "suspend", reason, data: { duration: days } });
+        ok++;
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    setBulkSuspendOpen(false);
+    setSelectedIds(new Set());
+    if (failed) toast.error(`Suspended ${ok}, ${failed} failed`);
+    else toast.success(`Suspended ${ok} user${ok === 1 ? "" : "s"}`);
+  };
+
+  const exportUsers = (rows: AdminUser[]) =>
+    exportCsv({
+      resource: "users",
+      filename: "users-export",
+      rows: rows as unknown as Array<Record<string, unknown>>,
+      columns: EXPORT_COLUMNS,
+      filters: { search: filters.search, role: filters.role, verified: filters.verified, status: filters.status },
+    });
 
   const handleSearch = useCallback(() => {
     setFilters(f => ({ ...f, search: searchInput, page: 1 }));
@@ -132,7 +161,7 @@ export default function Users() {
             <RefreshCw className="h-4 w-4" />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportToCSV(users, "users-export")}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportUsers(users)}>
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
@@ -141,14 +170,14 @@ export default function Users() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="glass-card border-l-4 border-l-primary hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, role: "", verified: "", page: 1 }))}>
+        <Card className="glass-card border-l-4 border-l-primary hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, role: "", verified: "", status: "", page: 1 }))}>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary">
                 <UserIcon className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-3xl font-bold text-foreground">{total}</p>
+                <p className="text-3xl font-bold text-foreground">{stats.totalUsers ?? total}</p>
                 <p className="text-sm text-muted-foreground">Total Users</p>
               </div>
             </div>
@@ -180,7 +209,7 @@ export default function Users() {
             </div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-l-4 border-l-destructive hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, role: "", verified: "", page: 1 }))}>
+        <Card className="glass-card border-l-4 border-l-destructive hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => setFilters(f => ({ ...f, status: "suspended", page: 1 }))}>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10">
@@ -233,6 +262,16 @@ export default function Users() {
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="verified">Verified</SelectItem>
                 <SelectItem value="unverified">Unverified</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filters.status || "all"} onValueChange={(v) => setFilters(f => ({ ...f, status: v === "all" ? "" : v, page: 1 }))}>
+              <SelectTrigger className="w-full md:w-[150px] bg-background/50 border-border/50">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
               </SelectContent>
             </Select>
             <Select value={String(filters.pageSize)} onValueChange={(v) => setFilters(f => ({ ...f, pageSize: parseInt(v), page: 1 }))}>
@@ -367,16 +406,40 @@ export default function Users() {
         selectedCount={selectedIds.size}
         onClear={() => setSelectedIds(new Set())}
         onSuspend={() => {
-          selectedIds.forEach(uid => performAction({ userId: uid, action: "suspend" }));
-          setSelectedIds(new Set());
+          if (suspendable.length === 0) {
+            toast.error("Admins and your own account can't be suspended");
+            return;
+          }
+          setBulkSuspendOpen(true);
         }}
         onExport={() => {
-          const selected = users.filter(u => selectedIds.has(u.id));
-          exportToCSV(selected, "selected-users");
+          exportUsers(selectedUsers);
           setSelectedIds(new Set());
         }}
-        isProcessing={isActionPending}
+        isProcessing={isActionPending || bulkBusy}
       />
+
+      <ReasonConfirmDialog
+        open={bulkSuspendOpen}
+        onOpenChange={setBulkSuspendOpen}
+        title={`Suspend ${suspendable.length} user${suspendable.length === 1 ? "" : "s"}`}
+        description={
+          <>
+            They are signed out everywhere and can't sign back in until the suspension ends or is lifted.
+            {selectedUsers.length !== suspendable.length &&
+              ` ${selectedUsers.length - suspendable.length} selected admin or own account(s) will be skipped.`}
+          </>
+        }
+        confirmLabel="Suspend"
+        destructive
+        pending={bulkBusy}
+        onConfirm={({ reason }) => runBulkSuspend(reason)}
+      >
+        <div className="space-y-2">
+          <label htmlFor="bulk-days" className="text-sm font-medium">Length (days, 1–365)</label>
+          <Input id="bulk-days" type="number" min={1} max={365} value={bulkDays} onChange={(e) => setBulkDays(e.target.value)} />
+        </div>
+      </ReasonConfirmDialog>
     </div>
   );
 }
@@ -457,9 +520,6 @@ function UserRow({ user, selected, onSelect }: { user: AdminUser; selected: bool
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2" onClick={() => navigate(`/users/${user.id}`)}>
               <Eye className="h-4 w-4" /> View Details
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2">
-              <Mail className="h-4 w-4" /> Send Email
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
