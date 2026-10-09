@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.admin-data-requests]
 verify_jwt = false
+
+[functions.admin-support]
+verify_jwt = false
