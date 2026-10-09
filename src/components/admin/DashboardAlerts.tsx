@@ -15,7 +15,7 @@ export function DashboardAlerts({ stats }: DashboardAlertsProps) {
   if (stats.subscriptions.trialing > 0) {
     alerts.push({
       icon: Clock,
-      text: `${stats.subscriptions.trialing} users currently on trial`,
+      text: `${stats.subscriptions.trialing} subscription${stats.subscriptions.trialing === 1 ? '' : 's'} currently on trial`,
       link: "/subscriptions",
       color: "text-info",
     });
@@ -25,7 +25,7 @@ export function DashboardAlerts({ stats }: DashboardAlertsProps) {
   if (stats.overview.waitlistCount > 0) {
     alerts.push({
       icon: ClipboardList,
-      text: `${stats.overview.waitlistCount} waitlist entries pending`,
+      text: `${stats.overview.waitlistCount} on the waitlist / newsletter`,
       link: "/waitlist",
       color: "text-warning",
     });
@@ -35,7 +35,7 @@ export function DashboardAlerts({ stats }: DashboardAlertsProps) {
   if (stats.subscriptions.cancelled > 0) {
     alerts.push({
       icon: AlertTriangle,
-      text: `${stats.subscriptions.cancelled} cancelled subscriptions`,
+      text: `${stats.subscriptions.cancelled} cancelled subscription${stats.subscriptions.cancelled === 1 ? '' : 's'}`,
       link: "/analytics",
       color: "text-destructive",
     });
@@ -51,7 +51,7 @@ export function DashboardAlerts({ stats }: DashboardAlertsProps) {
             <AlertTriangle className="h-4 w-4 text-warning" />
           </div>
           <div className="flex-1 space-y-2">
-            <p className="text-sm font-medium text-foreground">Action Needed</p>
+            <p className="text-sm font-medium text-foreground">Worth a look</p>
             <div className="flex flex-wrap gap-2">
               {alerts.map((alert, i) => (
                 <Link

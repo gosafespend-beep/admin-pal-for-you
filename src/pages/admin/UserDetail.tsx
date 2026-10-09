@@ -32,10 +32,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ReasonConfirmDialog } from "@/components/admin/ReasonConfirmDialog";
+import { Input } from "@/components/ui/input";
+import { useAdminAuth } from "@/hooks/admin/useAdminAuth";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -91,6 +90,8 @@ export default function UserDetail() {
   const { mutate: performAction, isPending: isActionPending } = useAdminUserActions();
   const { mutate: revokeSession, isPending: isRevoking } = useRevokeSession();
   
+  const { user: currentAdmin } = useAdminAuth();
+  const [suspendDays, setSuspendDays] = useState("30");
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     action: UserAction | null;
@@ -122,12 +123,15 @@ export default function UserDetail() {
 
   const { user, activitySummary, recentTransactions, subscription, sessions } = data;
   const isSuspended = user.banned_until && new Date(user.banned_until) > new Date();
+  const isSelf = currentAdmin?.id === user.id;
+  // The server refuses these as well; hiding them just avoids dead ends.
+  const canSuspendOrDelete = !isSelf && !user.is_admin;
 
   const handleAction = (action: UserAction) => {
     const configs: Record<UserAction, { title: string; description: string }> = {
-      suspend: { title: "Suspend User", description: `Suspend ${user.email} for 30 days.` },
+      suspend: { title: "Suspend User", description: `${user.email} will be signed out everywhere and unable to sign in until the suspension ends or is lifted.` },
       unsuspend: { title: "Lift Suspension", description: `Restore ${user.email}'s access.` },
-      delete: { title: "Delete User", description: `Permanently delete ${user.email} and all data. Cannot be undone.` },
+      delete: { title: "Delete User", description: `Permanently delete ${user.email} and all of their data. This cannot be undone.` },
       promote: { title: "Promote to Admin", description: `Give ${user.email} admin privileges.` },
       demote: { title: "Remove Admin", description: `Remove admin privileges from ${user.email}.` },
       resend_confirmation: { title: "Resend Confirmation", description: `Send new confirmation email to ${user.email}.` },
@@ -135,10 +139,16 @@ export default function UserDetail() {
     setConfirmDialog({ open: true, action, ...configs[action] });
   };
 
-  const executeAction = () => {
+  const executeAction = (reason: string, typed: string) => {
     if (confirmDialog.action && id) {
+      const action = confirmDialog.action;
       performAction(
-        { userId: id, action: confirmDialog.action },
+        {
+          userId: id,
+          action,
+          reason,
+          data: action === "suspend" ? { duration: Number(suspendDays) } : action === "delete" ? { confirmEmail: typed } : undefined,
+        },
         {
           onSuccess: () => {
             setConfirmDialog({ open: false, action: null, title: "", description: "" });
@@ -182,11 +192,13 @@ export default function UserDetail() {
                 </DropdownMenuItem>
               )}
               {user.is_admin ? (
-                <DropdownMenuItem onClick={() => handleAction("demote")}>
-                  <UserX className="mr-2 h-4 w-4" /> Remove Admin
-                </DropdownMenuItem>
+                !isSelf && (
+                  <DropdownMenuItem onClick={() => handleAction("demote")}>
+                    <UserX className="mr-2 h-4 w-4" /> Remove Admin
+                  </DropdownMenuItem>
+                )
               ) : (
-                <DropdownMenuItem onClick={() => handleAction("promote")}>
+                <DropdownMenuItem onClick={() => handleAction("promote")} disabled={!user.email_confirmed_at}>
                   <Crown className="mr-2 h-4 w-4" /> Make Admin
                 </DropdownMenuItem>
               )}
@@ -196,13 +208,17 @@ export default function UserDetail() {
                   <UserCheck className="mr-2 h-4 w-4" /> Lift Suspension
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onClick={() => handleAction("suspend")} className="text-warning">
-                  <Ban className="mr-2 h-4 w-4" /> Suspend User
+                canSuspendOrDelete && (
+                  <DropdownMenuItem onClick={() => handleAction("suspend")} className="text-warning">
+                    <Ban className="mr-2 h-4 w-4" /> Suspend User
+                  </DropdownMenuItem>
+                )
+              )}
+              {canSuspendOrDelete && (
+                <DropdownMenuItem onClick={() => handleAction("delete")} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete Permanently
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={() => handleAction("delete")} className="text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" /> Delete Permanently
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -480,25 +496,29 @@ export default function UserDetail() {
       {/* User Notes */}
       {id && <UserNotes userId={id} />}
 
-      {/* Confirmation Dialog */}
-      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog({ ...confirmDialog, open: false })}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
-            <AlertDialogDescription>{confirmDialog.description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isActionPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={executeAction}
-              disabled={isActionPending}
-              className={cn(confirmDialog.action === "delete" && "bg-destructive text-destructive-foreground")}
-            >
-              {isActionPending ? "Processing..." : "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Confirmation Dialog: every action needs a written reason; deletion also needs the email retyped. */}
+      <ReasonConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => !open && setConfirmDialog({ ...confirmDialog, open: false })}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmLabel={confirmDialog.action === "delete" ? "Delete permanently" : "Confirm"}
+        destructive={confirmDialog.action === "delete" || confirmDialog.action === "suspend"}
+        pending={isActionPending}
+        typedConfirmation={
+          confirmDialog.action === "delete"
+            ? { value: user.email, label: `Type ${user.email} to confirm` }
+            : undefined
+        }
+        onConfirm={({ reason, typed }) => executeAction(reason, typed)}
+      >
+        {confirmDialog.action === "suspend" && (
+          <div className="space-y-2">
+            <label htmlFor="suspend-days" className="text-sm font-medium">Length (days, 1–365)</label>
+            <Input id="suspend-days" type="number" min={1} max={365} value={suspendDays} onChange={(e) => setSuspendDays(e.target.value)} />
+          </div>
+        )}
+      </ReasonConfirmDialog>
     </div>
   );
 }

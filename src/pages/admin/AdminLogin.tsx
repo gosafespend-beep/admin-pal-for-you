@@ -14,7 +14,9 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { user, isAdmin, isLoading, signIn } = useAdminAuth();
+  const { user, isAdmin, isLoading, signIn, verifyMfa } = useAdminAuth();
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [code, setCode] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -24,24 +26,37 @@ export default function AdminLogin() {
     }
   }, [user, isAdmin, isLoading, navigate]);
 
+  const welcome = () => {
+    toast({
+      title: "Welcome back!",
+      description: "You've successfully signed in to the admin panel.",
+    });
+    navigate("/dashboard");
+  };
+
+  const fail = (error: unknown) => {
+    toast({
+      title: "Authentication failed",
+      description: error instanceof Error ? error.message : "Invalid credentials or insufficient permissions.",
+      variant: "destructive",
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
     try {
-      await signIn(email, password);
-      toast({
-        title: "Welcome back!",
-        description: "You've successfully signed in to the admin panel.",
-      });
-      navigate("/dashboard");
+      if (mfaFactorId) {
+        await verifyMfa(mfaFactorId, code);
+        welcome();
+      } else {
+        const result = await signIn(email, password);
+        if (result.mfaRequired && result.factorId) setMfaFactorId(result.factorId);
+        else welcome();
+      }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Invalid credentials or insufficient permissions.";
-      toast({
-        title: "Authentication failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      fail(error);
+      if (mfaFactorId) setCode("");
     } finally {
       setIsSubmitting(false);
     }
@@ -104,6 +119,31 @@ export default function AdminLogin() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-5">
+              {mfaFactorId ? (
+                <div className="space-y-2">
+                  <Label htmlFor="code" className="text-sm font-medium text-foreground">
+                    Authentication code
+                  </Label>
+                  <Input
+                    id="code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/D/g, ""))}
+                    required
+                    autoFocus
+                    disabled={isSubmitting}
+                    className="h-12 bg-background/50 border-border/50 text-center text-xl tracking-[0.5em]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Open your authenticator app and enter the 6-digit code for Safe Spend.
+                  </p>
+                </div>
+              ) : (
+                <>
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium text-foreground">
                   Email Address
@@ -150,20 +190,22 @@ export default function AdminLogin() {
                   </Button>
                 </div>
               </div>
+                </>
+              )}
               <Button 
                 type="submit" 
                 className="w-full h-12 gradient-primary font-semibold text-primary-foreground shadow-lg hover:shadow-glow transition-all duration-300" 
-                disabled={isSubmitting}
+                disabled={isSubmitting || (mfaFactorId !== null && code.length !== 6)}
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Authenticating...
+                    {mfaFactorId ? 'Verifying...' : 'Authenticating...'}
                   </>
                 ) : (
                   <>
                     <Shield className="mr-2 h-5 w-5" />
-                    Sign in to Dashboard
+                    {mfaFactorId ? 'Verify and continue' : 'Sign in to Dashboard'}
                   </>
                 )}
               </Button>

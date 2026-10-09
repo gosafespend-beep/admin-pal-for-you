@@ -70,12 +70,10 @@ const activityConfig: Record<string, { icon: React.ElementType; bgColor: string;
   },
 };
 
+// The feed mixes currencies and the source doesn't carry one, so show the
+// number without a symbol rather than a wrong one.
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 0,
-  }).format(amount);
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(amount);
 }
 
 function ActivityItemSkeleton() {

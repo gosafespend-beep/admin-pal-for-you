@@ -38,9 +38,9 @@ export function TransactionVolumeChart({ data, isLoading }: TransactionChartProp
     );
   }
 
-  const totalIncome = data.reduce((sum, item) => sum + item.income, 0);
-  const totalExpenses = data.reduce((sum, item) => sum + item.expenses, 0);
-  const netFlow = totalIncome - totalExpenses;
+  // Counts, not money: users keep accounts in different currencies, so adding
+  // their amounts together would produce a number that means nothing.
+  const total = data.reduce((sum, item) => sum + item.income + item.expenses, 0);
 
   return (
     <Card className="glass-card overflow-hidden">
@@ -51,18 +51,13 @@ export function TransactionVolumeChart({ data, isLoading }: TransactionChartProp
               <TrendingUp className="h-5 w-5 text-primary" />
               Transaction Volume
             </CardTitle>
-            <CardDescription>Monthly cash flow analysis</CardDescription>
+            <CardDescription>Transactions logged per month</CardDescription>
           </div>
           <div className="text-right">
-            <p className={`text-lg font-bold ${netFlow >= 0 ? 'text-primary' : 'text-destructive'}`}>
-              {netFlow >= 0 ? '+' : ''}{new Intl.NumberFormat('en-KE', { 
-                style: 'currency', 
-                currency: 'KES',
-                notation: 'compact',
-                maximumFractionDigits: 1
-              }).format(netFlow)}
+            <p className="text-lg font-bold text-foreground">
+              {new Intl.NumberFormat('en-US').format(total)}
             </p>
-            <p className="text-xs text-muted-foreground">Net Flow</p>
+            <p className="text-xs text-muted-foreground">Transactions shown</p>
           </div>
         </div>
       </CardHeader>
@@ -95,7 +90,7 @@ export function TransactionVolumeChart({ data, isLoading }: TransactionChartProp
                 tick={{ fill: 'hsl(215 20% 55%)', fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                allowDecimals={false}
               />
               <Tooltip 
                 contentStyle={{ 
@@ -106,8 +101,8 @@ export function TransactionVolumeChart({ data, isLoading }: TransactionChartProp
                 }}
                 labelStyle={{ color: 'hsl(210 40% 98%)', fontWeight: 600, marginBottom: 8 }}
                 formatter={(value: number, name: string) => [
-                  new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 0 }).format(value),
-                  name === 'income' ? 'Income' : 'Expenses'
+                  new Intl.NumberFormat('en-US').format(value),
+                  name === 'income' ? 'Incomes' : 'Expenses'
                 ]}
               />
               <Legend 

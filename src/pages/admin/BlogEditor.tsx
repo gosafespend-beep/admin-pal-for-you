@@ -184,6 +184,11 @@ export default function BlogEditor() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialLoadRef = useRef(false);
+  // The editor is "dirty" only when the fields differ from what was loaded or
+  // last saved. It used to flip to dirty as soon as an existing post filled the
+  // form, so leaving without touching anything asked "discard changes?".
+  const baselineRef = useRef<string | null>(null);
+  const awaitingHydrationRef = useRef<string | null>(null);
 
   // New SEO fields
   const [canonicalUrl, setCanonicalUrl] = useState("");
@@ -250,6 +255,8 @@ export default function BlogEditor() {
       setCtaDescription(existingPost.cta_description || "");
       setCtaButtonText(existingPost.cta_button_text || "");
       setCtaUrl(existingPost.cta_url || "https://app.gosafespend.com");
+      baselineRef.current = null;
+      awaitingHydrationRef.current = existingPost.title;
       initialLoadRef.current = true;
     }
   }, [existingPost]);
@@ -266,9 +273,23 @@ export default function BlogEditor() {
   useEffect(() => { if (!slugManual && title) setSlug(slugify(title)); }, [title, slugManual]);
   useEffect(() => { if (content) setReadingTime(estimateReadingTime(content)); }, [content]);
 
+  const snapshot = JSON.stringify([title, slug, content, excerpt, category, tags, featuredImage, authorName, metaTitle, metaDescription, scheduledDate?.toISOString() ?? null, canonicalUrl, focusKeyword, secondaryKeywords, ogImage, isFeatured, faqSchemaEnabled, articleSchemaEnabled, ctaHeadline, ctaDescription, ctaButtonText, ctaUrl]);
+
   useEffect(() => {
-    if (initialLoadRef.current) setIsDirty(true);
-  }, [title, slug, content, excerpt, category, tags, featuredImage, authorName, metaTitle, metaDescription, scheduledDate, canonicalUrl, focusKeyword, secondaryKeywords, ogImage, isFeatured, faqSchemaEnabled, articleSchemaEnabled, ctaHeadline, ctaDescription, ctaButtonText, ctaUrl]);
+    if (!initialLoadRef.current) return;
+    // Skip renders that still show the empty form while a loaded post is being applied.
+    if (awaitingHydrationRef.current !== null) {
+      if (title !== awaitingHydrationRef.current) return;
+      awaitingHydrationRef.current = null;
+    }
+    if (baselineRef.current === null) baselineRef.current = snapshot;
+    setIsDirty(snapshot !== baselineRef.current);
+  }, [snapshot, title]);
+
+  const markClean = () => {
+    baselineRef.current = snapshot;
+    setIsDirty(false);
+  };
 
   // Autosave
   useEffect(() => {
@@ -347,7 +368,7 @@ export default function BlogEditor() {
         localStorage.removeItem(AUTOSAVE_KEY);
         navigate(`/blog/editor/${created.id}`, { replace: true });
       }
-      setIsDirty(false);
+      markClean();
     } catch { /* errors handled by mutation */ }
   };
 
@@ -365,7 +386,7 @@ export default function BlogEditor() {
         localStorage.removeItem(AUTOSAVE_KEY);
         navigate(`/blog/editor/${created.id}`, { replace: true });
       }
-      setIsDirty(false);
+      markClean();
     } catch { /* errors handled by mutation */ }
   };
 

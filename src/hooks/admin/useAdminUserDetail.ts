@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeAdmin } from "@/lib/adminApi";
 import { toast } from "@/hooks/use-toast";
 
 export interface UserDetail {
@@ -70,17 +71,7 @@ export function useAdminUserDetail(userId: string | undefined) {
     queryKey: ["admin", "user", userId],
     queryFn: async (): Promise<UserDetailResponse> => {
       if (!userId) throw new Error("User ID is required");
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const response = await supabase.functions.invoke("admin-user-detail", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { userId },
-      });
-
-      if (response.error) throw new Error(response.error.message || "Failed to fetch user details");
-      return response.data;
+      return invokeAdmin<UserDetailResponse>("admin-user-detail", { method: "POST", body: { userId } });
     },
     enabled: !!userId,
     staleTime: 30000,
@@ -93,18 +84,21 @@ export function useAdminUserActions() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ userId, action, data }: { userId: string; action: UserAction; data?: Record<string, unknown> }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const response = await supabase.functions.invoke("admin-user-actions", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { userId, action, data },
-      });
-
-      if (response.error) throw new Error(response.error.message || "Action failed");
-      return response.data;
-    },
+    mutationFn: ({
+      userId,
+      action,
+      data,
+      reason,
+    }: {
+      userId: string;
+      action: UserAction;
+      data?: Record<string, unknown>;
+      reason?: string;
+    }) =>
+      invokeAdmin<{ message: string }>("admin-user-actions", {
+        method: "POST",
+        body: { userId, action, data, reason },
+      }),
     onSuccess: (data, variables) => {
       toast({ title: "Success", description: data.message });
       queryClient.invalidateQueries({ queryKey: ["admin", "user", variables.userId] });
@@ -121,9 +115,6 @@ export function useRevokeSession() {
 
   return useMutation({
     mutationFn: async ({ userId, sessionId }: { userId: string; sessionId: string }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
       const { data, error } = await supabase.rpc('revoke_user_session', {
         p_user_id: userId,
         p_session_id: sessionId,

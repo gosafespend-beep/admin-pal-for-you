@@ -16,6 +16,10 @@ const routeLabels: Record<string, string> = {
   subscriptions: "Subscriptions",
   analytics: "Analytics",
   "audit-log": "Audit Log",
+  blog: "Blog",
+  editor: "Editor",
+  new: "New post",
+  ebook: "Ebook",
   settings: "Settings",
 };
 
@@ -31,11 +35,14 @@ export function AdminBreadcrumbs() {
     const segment = segments[i];
     currentPath += `/${segment}`;
 
-    // UUID segment = user detail
+    // A UUID is a user under /users and a post under /blog/editor.
     if (/^[0-9a-f-]{36}$/i.test(segment)) {
-      items.push({ label: "User Detail", path: currentPath });
+      items.push({ label: segments[0] === "blog" ? "Post" : "User details", path: currentPath });
       continue;
     }
+
+    // "editor" has no page of its own; /blog/editor would be a dead link.
+    if (segment === "editor") continue;
 
     const label = routeLabels[segment] || segment;
     items.push({ label, path: currentPath });

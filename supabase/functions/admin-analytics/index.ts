@@ -1,57 +1,45 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { clampInt, errorResponse, json, listAllUsers, requireAdmin, selectAll } from "../_shared/http.ts";
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (!cors) return forbidden();
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let requestId: string | undefined;
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
-    }
+    const ctx = await requireAdmin(req, cors);
+    if (ctx instanceof Response) return ctx;
+    requestId = ctx.meta.requestId;
+    const { adminClient, userClient } = ctx;
+    const now = new Date();
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const url = new URL(req.url);
+    const trendDays = clampInt(url.searchParams.get("days"), 30, 1, 365);
 
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    })
-
-    const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
-    if (adminError || !isAdmin) {
-      return new Response(JSON.stringify({ error: 'Access denied' }), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } })
-    }
-
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
-    const now = new Date()
-
-    const url = new URL(req.url)
-    const trendDays = Math.min(Math.max(parseInt(url.searchParams.get('days') || '30'), 1), 365)
-
+    // Users and transactions are read in full (paged), not cut off at the first
+    // 1,000, so the retention figures stay correct as the user base grows.
     const [
-      usersResult, subscriptionsResult, expensesResult, incomesResult,
+      users, subscriptions, expenseRows, incomeRows,
       funnelResult, timeseriesResult, featureUsageResult, dataHealthResult,
     ] = await Promise.all([
-      adminClient.auth.admin.listUsers({ perPage: 1000 }),
-      adminClient.from('subscriptions').select('*'),
-      adminClient.from('expenses').select('user_id, created_at, amount'),
-      adminClient.from('incomes').select('user_id, created_at, amount'),
-      userClient.rpc('admin_event_funnel'),
-      userClient.rpc('admin_event_timeseries', { p_days: trendDays }),
-      userClient.rpc('admin_feature_usage'),
-      userClient.rpc('admin_data_health'),
-    ])
+      listAllUsers(adminClient),
+      selectAll(adminClient, "subscriptions", "*"),
+      selectAll(adminClient, "expenses", "user_id"),
+      selectAll(adminClient, "incomes", "user_id"),
+      userClient.rpc("admin_event_funnel"),
+      userClient.rpc("admin_event_timeseries", { p_days: trendDays }),
+      userClient.rpc("admin_feature_usage"),
+      userClient.rpc("admin_data_health"),
+    ]);
+    const expensesResult = { data: expenseRows };
+    const incomesResult = { data: incomeRows };
 
     if (funnelResult.error) console.error('admin_event_funnel:', funnelResult.error.message)
     if (timeseriesResult.error) console.error('admin_event_timeseries:', timeseriesResult.error.message)
     if (featureUsageResult.error) console.error('admin_feature_usage:', featureUsageResult.error.message)
     if (dataHealthResult.error) console.error('admin_data_health:', dataHealthResult.error.message)
 
-    const users = usersResult.data?.users || []
-    const subscriptions = subscriptionsResult.data || []
 
     // --- Retention Funnel ---
     const totalRegistered = users.length
@@ -59,8 +47,8 @@ Deno.serve(async (req) => {
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
 
     // Users with at least 1 transaction
-    const expenseUserIds = new Set((expensesResult.data || []).map((e: { user_id: string }) => e.user_id))
-    const incomeUserIds = new Set((incomesResult.data || []).map((i: { user_id: string }) => i.user_id))
+    const expenseUserIds = new Set((expensesResult.data).map((e: { user_id: string }) => e.user_id))
+    const incomeUserIds = new Set((incomesResult.data).map((i: { user_id: string }) => i.user_id))
     const usersWithTransactions = new Set([...expenseUserIds, ...incomeUserIds])
     
     const activeIn30d = users.filter((u: { last_sign_in_at: string | null }) =>
@@ -75,7 +63,7 @@ Deno.serve(async (req) => {
 
     // --- Churn Risk: active before but not in 14 days ---
     const churnRiskUsers = users
-      .filter((u: { last_sign_in_at: string | null; created_at: string }) => {
+      .filter((u: { id: string; last_sign_in_at: string | null; created_at: string }) => {
         if (!u.last_sign_in_at) return false
         const lastSignIn = new Date(u.last_sign_in_at)
         return lastSignIn < fourteenDaysAgo && usersWithTransactions.has(u.id)
@@ -119,10 +107,10 @@ Deno.serve(async (req) => {
 
     // --- Top Users by Activity ---
     const userActivityMap = new Map<string, number>()
-    ;(expensesResult.data || []).forEach((e: { user_id: string }) => {
+    ;(expensesResult.data).forEach((e: { user_id: string }) => {
       userActivityMap.set(e.user_id, (userActivityMap.get(e.user_id) || 0) + 1)
     })
-    ;(incomesResult.data || []).forEach((i: { user_id: string }) => {
+    ;(incomesResult.data).forEach((i: { user_id: string }) => {
       userActivityMap.set(i.user_id, (userActivityMap.get(i.user_id) || 0) + 1)
     })
 
@@ -211,12 +199,8 @@ Deno.serve(async (req) => {
       },
     }
 
-    return new Response(JSON.stringify(analytics), {
-      status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
-    })
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Unknown error'
-    console.error('admin-analytics error:', error)
-    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+    return json(analytics, 200, cors);
+  } catch (error) {
+    return errorResponse(error, cors, requestId, "admin-analytics");
   }
-})
+});

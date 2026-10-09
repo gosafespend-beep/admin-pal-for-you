@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeAdmin } from "@/lib/adminApi";
 
 interface HealthCheck {
   status: string;
@@ -23,26 +23,9 @@ export interface BlogImageSettings {
   defaultFeaturedImage: string;
 }
 
-async function invokeSettings(action: string, method = "GET", body?: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  
-  const url = `https://qeogqvjqvafbzufanwki.supabase.co/functions/v1/admin-settings?action=${action}`;
-  const res = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFlb2dxdmpxdmFmYnp1ZmFud2tpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MTAwNDksImV4cCI6MjA4NTE4NjA0OX0.H84dCTVcdwBcmliqWDhfRK9cHMfAWSae1EfNj-oAyF8",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || "Request failed");
-  }
-  return res.json();
+function invokeSettings(action: string, method: "GET" | "POST" = "GET", body?: Record<string, unknown>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return invokeAdmin<any>("admin-settings", { method, query: { action }, body });
 }
 
 export function useSystemHealth() {
@@ -63,7 +46,7 @@ export function useAdminList() {
 export function useAddAdmin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (email: string) => invokeSettings("add-admin", "POST", { email }),
+    mutationFn: (vars: { email: string; reason: string }) => invokeSettings("add-admin", "POST", vars),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "admins"] }),
   });
 }
@@ -71,7 +54,7 @@ export function useAddAdmin() {
 export function useRemoveAdmin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (userId: string) => invokeSettings("remove-admin", "POST", { userId }),
+    mutationFn: (vars: { userId: string; reason: string }) => invokeSettings("remove-admin", "POST", vars),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "admins"] }),
   });
 }

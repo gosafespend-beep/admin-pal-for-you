@@ -42,10 +42,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ReasonConfirmDialog } from "@/components/admin/ReasonConfirmDialog";
+import { useExportCsv } from "@/hooks/admin/useExportCsv";
 import { useAdminSubscriptions, useSubscriptionAction } from "@/hooks/admin/useAdminSubscriptions";
 import { AdminErrorState } from "@/components/admin/AdminErrorState";
 import { format } from "date-fns";
@@ -80,6 +78,7 @@ export default function Subscriptions() {
 
   const { data, isLoading, error, refetch } = useAdminSubscriptions({ page, pageSize, status, search });
   const { mutate: performAction, isPending: isActioning } = useSubscriptionAction();
+  const exportCsv = useExportCsv();
 
   const totalPages = Math.ceil((data?.total || 0) / pageSize);
 
@@ -92,33 +91,37 @@ export default function Subscriptions() {
     const configs: Record<string, { title: string; description: string }> = {
       extend_trial: { title: "Extend Trial", description: `Extend trial by 7 days for ${email}.` },
       cancel: { title: "Cancel Subscription", description: `Cancel subscription for ${email}.` },
-      reactivate: { title: "Reactivate Subscription", description: `Reactivate subscription for ${email} with a 30-day period.` },
+      reactivate: { title: "Reactivate Subscription", description: `Reactivate subscription for ${email} with a 30-day period. Subscriptions billed by Paystack or an app store can't be changed here; use the provider.` },
     };
     setConfirmAction({ open: true, subscriptionId: subId, action, ...configs[action] });
   };
 
-  const executeAction = () => {
+  const executeAction = (reason: string) => {
     performAction(
-      { subscriptionId: confirmAction.subscriptionId, action: confirmAction.action as 'extend_trial' | 'cancel' | 'reactivate' },
+      {
+        subscriptionId: confirmAction.subscriptionId,
+        action: confirmAction.action as 'extend_trial' | 'cancel' | 'reactivate',
+        data: confirmAction.action === "extend_trial" ? { days: 7 } : undefined,
+        reason,
+      },
       { onSuccess: () => setConfirmAction({ open: false, subscriptionId: "", action: "", title: "", description: "" }) }
     );
   };
 
-  const exportCSV = () => {
-    if (!data?.subscriptions?.length) return;
-    const headers = ["Email", "Status", "Plan", "Trial Start", "Trial End", "Created"];
-    const rows = data.subscriptions.map((s) => [
-      s.userEmail, s.status, s.plan_type || "free", s.trial_start, s.trial_end, s.created_at,
-    ]);
-    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `subscriptions-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const exportCSV = () =>
+    exportCsv({
+      resource: "subscriptions",
+      filename: "subscriptions",
+      rows: (data?.subscriptions ?? []).map((s) => ({
+        Email: s.userEmail,
+        Status: s.status,
+        Plan: s.plan_type || "free",
+        "Trial Start": s.trial_start,
+        "Trial End": s.trial_end,
+        Created: s.created_at,
+      })),
+      filters: { status, search },
+    });
 
   if (error) {
     return (
@@ -464,20 +467,16 @@ export default function Subscriptions() {
       )}
 
       {/* Confirm Action Dialog */}
-      <AlertDialog open={confirmAction.open} onOpenChange={(open) => !open && setConfirmAction({ ...confirmAction, open: false })}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmAction.title}</AlertDialogTitle>
-            <AlertDialogDescription>{confirmAction.description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isActioning}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeAction} disabled={isActioning}>
-              {isActioning ? "Processing..." : "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ReasonConfirmDialog
+        open={confirmAction.open}
+        onOpenChange={(open) => !open && setConfirmAction({ ...confirmAction, open: false })}
+        title={confirmAction.title}
+        description={confirmAction.description}
+        confirmLabel="Confirm"
+        destructive={confirmAction.action === "cancel"}
+        pending={isActioning}
+        onConfirm={({ reason }) => executeAction(reason)}
+      />
     </div>
   );
 }

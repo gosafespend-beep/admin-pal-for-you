@@ -76,7 +76,7 @@ export default function Analytics() {
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Rocket className="h-5 w-5 text-primary" /> Activation Funnel</CardTitle>
-            <CardDescription>From first app open to first recorded transaction</CardDescription>
+            <CardDescription>From first app open to first recorded transaction. Counts of events over all time, not people.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? <div className="h-48 shimmer rounded" /> : <FunnelSteps steps={product?.activationFunnel ?? []} />}
@@ -86,7 +86,7 @@ export default function Analytics() {
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-purple" /> Monetization Funnel</CardTitle>
-            <CardDescription>Paywall through to completed purchase</CardDescription>
+            <CardDescription>Paywall through to completed purchase. Counts of events over all time; restores are included in the outcomes.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoading ? <div className="h-48 shimmer rounded" /> : (
@@ -343,7 +343,7 @@ export default function Analytics() {
                       )}>{user.subscriptionStatus}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => navigate(`/admin/users/${user.id}`)}>
+                      <Button variant="outline" size="sm" onClick={() => navigate(`/users/${user.id}`)}>
                         View
                       </Button>
                     </TableCell>
@@ -392,7 +392,7 @@ export default function Analytics() {
                       )}>{user.subscriptionStatus}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => navigate(`/admin/users/${user.id}`)}>
+                      <Button variant="outline" size="sm" onClick={() => navigate(`/users/${user.id}`)}>
                         View
                       </Button>
                     </TableCell>

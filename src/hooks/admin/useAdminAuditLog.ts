@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeAdmin } from "@/lib/adminApi";
 
 export interface AuditLogEntry {
   id: string;
@@ -22,25 +22,22 @@ export interface AuditLogFilters {
 export function useAdminAuditLog(filters: AuditLogFilters) {
   return useQuery({
     queryKey: ["admin", "audit-log", filters],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const params = new URLSearchParams({
-        page: String(filters.page),
-        pageSize: String(filters.pageSize),
-      });
-      if (filters.action) params.set("action", filters.action);
-      if (filters.targetType) params.set("targetType", filters.targetType);
-
-      const response = await supabase.functions.invoke("admin-audit-log?" + params.toString(), {
-        method: "GET",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-
-      if (response.error) throw new Error(response.error.message || "Failed to fetch audit log");
-      return response.data as { data: AuditLogEntry[]; total: number; page: number; pageSize: number };
-    },
+    queryFn: () =>
+      invokeAdmin<{
+        data: AuditLogEntry[];
+        total: number;
+        page: number;
+        pageSize: number;
+        facets: { actions: string[]; targetTypes: string[] };
+      }>("admin-audit-log", {
+        query: {
+          page: filters.page,
+          pageSize: filters.pageSize,
+          action: filters.action,
+          targetType: filters.targetType,
+        },
+      }),
+    placeholderData: (previous) => previous,
     staleTime: 15000,
   });
 }

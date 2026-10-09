@@ -1,171 +1,165 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsFor, forbidden } from "../_shared/guard.ts";
+import { audited } from "../_shared/audit.ts";
+import { clampInt, errorResponse, HttpError, isUuid, json, listAllUsers, requireAdmin, selectAll } from "../_shared/http.ts";
+
+const DAY = 24 * 60 * 60 * 1000;
+const MIN_REASON = 10;
 
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (!cors) return forbidden();
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
+  let requestId: string | undefined;
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
-    }
+    const ctx = await requireAdmin(req, cors);
+    if (ctx instanceof Response) return ctx;
+    requestId = ctx.meta.requestId;
+    const { adminClient } = ctx;
+    const url = new URL(req.url);
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    // POST: extend a trial, cancel or reactivate a subscription.
+    if (req.method === "POST") {
+      const body = await req.json().catch(() => ({}));
+      const { subscriptionId, action, data: actionData } = body;
+      const reason = typeof body.reason === "string" ? body.reason.trim() : "";
 
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    })
+      if (!isUuid(subscriptionId) || !action) throw new HttpError(400, "subscriptionId and action are required");
+      if (reason.length < MIN_REASON) throw new HttpError(400, `A reason of at least ${MIN_REASON} characters is required`);
+      if (reason.length > 500) throw new HttpError(400, "The reason must be 500 characters or fewer");
 
-    const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin')
-    if (adminError || !isAdmin) {
-      return new Response(JSON.stringify({ error: 'Access denied' }), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } })
-    }
+      const { data: sub } = await adminClient
+        .from("subscriptions")
+        .select("id, user_id, status, trial_end, cancelled_at, current_period_end, paystack_subscription_code")
+        .eq("id", subscriptionId)
+        .maybeSingle();
+      if (!sub) throw new HttpError(404, "Subscription not found");
 
-    const { data: { user: adminUser } } = await userClient.auth.getUser()
-    const adminUserId = adminUser?.id
+      const now = new Date();
+      let updateData: Record<string, unknown> = {};
+      const details: Record<string, unknown> = {
+        reason,
+        before: { status: sub.status, trial_end: sub.trial_end, current_period_end: sub.current_period_end },
+      };
 
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
-    const url = new URL(req.url)
-
-    // POST: Subscription actions (extend trial, cancel, reactivate)
-    if (req.method === 'POST') {
-      const body = await req.json()
-      const { subscriptionId, action, data: actionData } = body
-
-      if (!subscriptionId || !action) {
-        return new Response(JSON.stringify({ error: 'subscriptionId and action are required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+      if (action === "cancel" || action === "reactivate") {
+        // These rows mirror a payment provider. Editing the local status
+        // without telling the provider would hand out free access or hide a
+        // charge that is still being taken, so it is refused here.
+        const { data: store } = await adminClient
+          .from("revenuecat_entitlements")
+          .select("user_id")
+          .eq("user_id", sub.user_id)
+          .eq("is_active", true)
+          .neq("period_type", "trial")
+          .limit(1);
+        if (sub.paystack_subscription_code || (store?.length ?? 0) > 0) {
+          throw new HttpError(
+            409,
+            "This subscription is billed by a payment provider. Cancel or restore it with the provider; changing it here would not stop or start billing",
+          );
+        }
       }
-
-      let updateData: Record<string, unknown> = {}
 
       switch (action) {
-        case 'extend_trial': {
-          const days = actionData?.days || 7
-          const { data: sub } = await adminClient.from('subscriptions').select('trial_end').eq('id', subscriptionId).single()
-          if (!sub) {
-            return new Response(JSON.stringify({ error: 'Subscription not found' }), { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } })
-          }
-          const currentEnd = new Date(sub.trial_end)
-          const newEnd = new Date(currentEnd.getTime() + days * 24 * 60 * 60 * 1000)
-          updateData = { trial_end: newEnd.toISOString(), status: 'trialing', updated_at: new Date().toISOString() }
-          break
+        case "extend_trial": {
+          const days = Number(actionData?.days ?? 7);
+          if (!Number.isInteger(days) || days < 1 || days > 90) throw new HttpError(400, "Extension must be a whole number of days from 1 to 90");
+          if (!sub.trial_end) throw new HttpError(409, "This subscription has no trial to extend");
+          const base = Math.max(new Date(sub.trial_end).getTime(), now.getTime());
+          updateData = { trial_end: new Date(base + days * DAY).toISOString(), status: "trialing", updated_at: now.toISOString() };
+          details.days = days;
+          break;
         }
-        case 'cancel': {
-          updateData = { status: 'cancelled', cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-          break
-        }
-        case 'reactivate': {
-          const now = new Date()
-          const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
-          updateData = { 
-            status: 'active', 
-            cancelled_at: null, 
+        case "cancel":
+          updateData = { status: "cancelled", cancelled_at: now.toISOString(), updated_at: now.toISOString() };
+          break;
+        case "reactivate":
+          updateData = {
+            status: "active",
+            cancelled_at: null,
             current_period_start: now.toISOString(),
-            current_period_end: periodEnd.toISOString(),
-            updated_at: now.toISOString()
-          }
-          break
-        }
+            current_period_end: new Date(now.getTime() + 30 * DAY).toISOString(),
+            updated_at: now.toISOString(),
+          };
+          break;
         default:
-          return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+          throw new HttpError(400, "Unknown action");
       }
+      details.after = updateData;
 
-      const { error: updateError } = await adminClient.from('subscriptions').update(updateData).eq('id', subscriptionId)
-      if (updateError) {
-        return new Response(JSON.stringify({ error: updateError.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
-      }
+      await audited(
+        adminClient,
+        {
+          adminUserId: ctx.adminId,
+          action: `subscription_${action}`,
+          targetType: "subscription",
+          targetId: subscriptionId,
+          details,
+          meta: ctx.meta,
+        },
+        async () => {
+          const { error } = await adminClient.from("subscriptions").update(updateData).eq("id", subscriptionId);
+          if (error) throw error;
+        },
+      );
 
-      // Audit log
-      if (adminUserId) {
-        await adminClient.from('admin_audit_log').insert({
-          admin_user_id: adminUserId,
-          action,
-          target_type: 'subscription',
-          target_id: subscriptionId,
-          details: { updateData },
-        })
-      }
-
-      return new Response(JSON.stringify({ success: true, message: `Subscription ${action} successful` }), {
-        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
-      })
+      return json({ success: true, message: `Subscription ${action.replace("_", " ")} successful` }, 200, cors);
     }
 
-    if (req.method === 'GET') {
-      const page = parseInt(url.searchParams.get('page') || '1')
-      const pageSize = parseInt(url.searchParams.get('pageSize') || '20')
-      const statusFilter = url.searchParams.get('status') || ''
-      const search = url.searchParams.get('search') || ''
+    if (req.method === "GET") {
+      const page = clampInt(url.searchParams.get("page"), 1, 1, 10_000);
+      const pageSize = clampInt(url.searchParams.get("pageSize"), 20, 1, 100);
+      const statusFilter = url.searchParams.get("status") || "";
+      const search = (url.searchParams.get("search") || "").trim().toLowerCase().slice(0, 100);
 
-      let query = adminClient.from('subscriptions').select('*').order('created_at', { ascending: false })
+      const [subscriptions, users, healthResult, entitlementsResult] = await Promise.all([
+        selectAll(adminClient, "subscriptions", "*"),
+        listAllUsers(adminClient),
+        adminClient.rpc("entitlement_health"),
+        adminClient.from("revenuecat_entitlements").select("*").order("updated_at", { ascending: false }).limit(200),
+      ]);
+      if (healthResult.error) console.error("entitlement_health:", healthResult.error.message);
+      if (entitlementsResult.error) console.error("revenuecat_entitlements:", entitlementsResult.error.message);
+      const userMap = new Map(users.map((u) => [u.id, u]));
 
-      if (statusFilter) {
-        query = query.eq('status', statusFilter)
-      }
+      subscriptions.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+      let enriched = subscriptions.map((sub) => ({
+        ...sub,
+        userEmail: userMap.get(sub.user_id)?.email || "Unknown",
+        userCreatedAt: userMap.get(sub.user_id)?.created_at,
+      }));
+      if (statusFilter) enriched = enriched.filter((s) => s.status === statusFilter);
+      if (search) enriched = enriched.filter((s) => s.userEmail.toLowerCase().includes(search));
 
-      const { data: subscriptions, error: subErr } = await query
+      const offset = (page - 1) * pageSize;
+      const count = (status: string) => subscriptions.filter((s) => s.status === status).length;
 
-      if (subErr) {
-        return new Response(JSON.stringify({ error: subErr.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
-      }
-
-      const [{ data: { users } }, healthResult, entitlementsResult] = await Promise.all([
-        adminClient.auth.admin.listUsers({ perPage: 1000 }),
-        adminClient.rpc('entitlement_health'),
-        adminClient.from('revenuecat_entitlements').select('*').order('updated_at', { ascending: false }).limit(200),
-      ])
-      if (healthResult.error) console.error('entitlement_health:', healthResult.error.message)
-      if (entitlementsResult.error) console.error('revenuecat_entitlements:', entitlementsResult.error.message)
-      const userMap = new Map((users || []).map(u => [u.id, u]))
-
-      let enriched = (subscriptions || []).map(sub => {
-        const user = userMap.get(sub.user_id)
-        return {
-          ...sub,
-          userEmail: user?.email || 'Unknown',
-          userCreatedAt: user?.created_at,
-        }
-      })
-
-      if (search) {
-        const q = search.toLowerCase()
-        enriched = enriched.filter(s => s.userEmail.toLowerCase().includes(q))
-      }
-
-      const total = enriched.length
-      const offset = (page - 1) * pageSize
-      const paginated = enriched.slice(offset, offset + pageSize)
-
-      const stats = {
-        total: (subscriptions || []).length,
-        active: (subscriptions || []).filter(s => s.status === 'active').length,
-        trialing: (subscriptions || []).filter(s => s.status === 'trialing').length,
-        cancelled: (subscriptions || []).filter(s => s.status === 'cancelled').length,
-        expired: (subscriptions || []).filter(s => s.status === 'expired').length,
-      }
-
-      const entitlements = (entitlementsResult.data || []).map((e: Record<string, unknown>) => ({
-        ...e,
-        userEmail: userMap.get(e.user_id as string)?.email || 'Unknown',
-      }))
-
-      const entitlementHealth = (healthResult.data || []) as Array<{
-        check_name: string; severity: string; affected: number; detail: string
-      }>
-
-      return new Response(JSON.stringify({ subscriptions: paginated, total, stats, entitlementHealth, entitlements }), {
-        status: 200, headers: { ...cors, 'Content-Type': 'application/json' }
-      })
+      return json(
+        {
+          subscriptions: enriched.slice(offset, offset + pageSize),
+          total: enriched.length,
+          // Stats cover every subscription, not just the filtered view.
+          stats: {
+            total: subscriptions.length,
+            active: count("active"),
+            trialing: count("trialing"),
+            cancelled: count("cancelled"),
+            expired: count("expired"),
+          },
+          entitlementHealth: (healthResult.data || []) as Array<{ check_name: string; severity: string; affected: number; detail: string }>,
+          entitlements: (entitlementsResult.data || []).map((e: Record<string, unknown>) => ({
+            ...e,
+            userEmail: userMap.get(e.user_id as string)?.email || "Unknown",
+          })),
+        },
+        200,
+        cors,
+      );
     }
 
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...cors, 'Content-Type': 'application/json' } })
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Unknown error'
-    console.error('admin-subscriptions error:', error)
-    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+    return json({ error: "Method not allowed" }, 405, cors);
+  } catch (error) {
+    return errorResponse(error, cors, requestId, "admin-subscriptions");
   }
-})
+});
