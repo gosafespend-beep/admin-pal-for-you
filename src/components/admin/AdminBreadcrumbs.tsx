@@ -17,6 +17,7 @@ const routeLabels: Record<string, string> = {
   billing: "Billing",
   growth: "Growth",
   "data-requests": "Data requests",
+  support: "Support",
   analytics: "Analytics",
   "audit-log": "Audit Log",
   blog: "Blog",

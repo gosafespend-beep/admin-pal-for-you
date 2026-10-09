@@ -75,3 +75,12 @@ Order: apply 07 -> merge -> deploy `admin-metrics` (new).
 
 Order: apply 08 -> merge -> deploy `admin-data-requests` (new).
 Note: the table has no `user_id` column on purpose: `delete_user_data` deletes from every public table that has one, which would erase the record of the request.
+
+## Phase 2, slice 5 (support tools)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 9 | `09_support_tools.sql` | **Before** deploying `admin-support` | Creates the `support_macros` table (no policies; service role only) with seven starter replies, and `admin_support_snapshot(user)` (service role only), which asks the app's own `can_write()` whether a person can save data. Additive. |
+
+Order: apply 09 -> merge -> deploy `admin-support` (new).
+Note: the starter replies are drafts. Read and edit them on the Support page before using them with customers.
