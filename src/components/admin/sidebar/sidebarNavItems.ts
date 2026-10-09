@@ -11,6 +11,7 @@ import {
   BookOpen,
   Wallet,
   TrendingUp,
+  ShieldCheck,
 } from "lucide-react";
 
 export const overviewNavItems = [
@@ -20,6 +21,7 @@ export const overviewNavItems = [
 export const userNavItems = [
   { title: "Users", url: "/users", icon: Users },
   { title: "Waitlist", url: "/waitlist", icon: ClipboardList },
+  { title: "Data requests", url: "/data-requests", icon: ShieldCheck },
 ];
 
 export const financeNavItems = [
