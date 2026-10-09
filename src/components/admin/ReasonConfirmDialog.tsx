@@ -26,6 +26,9 @@ interface ReasonConfirmDialogProps {
   /** Extra controls rendered above the reason, e.g. a suspension length. */
   children?: ReactNode;
   pending?: boolean;
+  /** Wording for the text box; defaults suit an audited reason. */
+  reasonLabel?: string;
+  reasonPlaceholder?: string;
   onConfirm: (result: { reason: string; typed: string }) => void;
 }
 
@@ -45,6 +48,8 @@ export function ReasonConfirmDialog({
   typedConfirmation,
   children,
   pending,
+  reasonLabel = "Reason (recorded in the audit log)",
+  reasonPlaceholder = "Why is this being done?",
   onConfirm,
 }: ReasonConfirmDialogProps) {
   const [reason, setReason] = useState("");
@@ -72,14 +77,14 @@ export function ReasonConfirmDialog({
           {children}
 
           <div className="space-y-2">
-            <Label htmlFor="action-reason">Reason (recorded in the audit log)</Label>
+            <Label htmlFor="action-reason">{reasonLabel}</Label>
             <Textarea
               id="action-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               maxLength={500}
               rows={3}
-              placeholder="Why is this being done?"
+              placeholder={reasonPlaceholder}
             />
             <p className="text-xs text-muted-foreground">
               {reasonOk ? " " : `At least ${MIN_REASON_LENGTH} characters (${reason.trim().length}/${MIN_REASON_LENGTH})`}

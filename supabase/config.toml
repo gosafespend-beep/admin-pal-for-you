@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.admin-metrics]
 verify_jwt = false
+
+[functions.admin-data-requests]
+verify_jwt = false

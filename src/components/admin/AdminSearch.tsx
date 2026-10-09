@@ -19,6 +19,7 @@ const pages = [
   { name: "Subscriptions", path: "/subscriptions", icon: CreditCard, keywords: "plans billing" },
   { name: "Waitlist", path: "/waitlist", icon: ClipboardList, keywords: "signups emails" },
   { name: "Settings", path: "/settings", icon: Settings, keywords: "config health admins" },
+  { name: "Data requests", path: "/data-requests", icon: ClipboardList, keywords: "gdpr dsar delete export privacy consent retention" },
   { name: "Growth", path: "/growth", icon: BarChart3, keywords: "funnel retention cohorts signups activation acquisition" },
   { name: "Analytics", path: "/analytics", icon: BarChart3, keywords: "funnel retention churn events product" },
   { name: "Audit Log", path: "/audit-log", icon: ScrollText, keywords: "history actions security who did" },

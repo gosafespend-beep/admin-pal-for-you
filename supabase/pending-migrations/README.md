@@ -66,3 +66,12 @@ exercised against a real paying customer; try it on a test subscription first.
 | 7 | `07_growth_metrics.sql` | **Before** deploying `admin-metrics` | Adds `admin_growth_metrics(weeks)` (service role only). Additive. |
 
 Order: apply 07 -> merge -> deploy `admin-metrics` (new).
+
+## Phase 2, slice 4 (data requests)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 8 | `08_data_requests.sql` | **Before** deploying `admin-data-requests` | Creates the `data_requests` table (no policies; service role only) and four service-role-only functions (find by email, export one person's data, retention report, consent summary). Additive. |
+
+Order: apply 08 -> merge -> deploy `admin-data-requests` (new).
+Note: the table has no `user_id` column on purpose: `delete_user_data` deletes from every public table that has one, which would erase the record of the request.
