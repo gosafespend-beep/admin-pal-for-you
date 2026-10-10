@@ -12,6 +12,8 @@
  */
 import type { AnyClient } from "./http.ts";
 import { assessMarketing, type MarketingOverview } from "./marketingRules.ts";
+import { collectHealth } from "./health.ts";
+import { assessHealth } from "./healthRules.ts";
 import {
   assessOpsSignals, composeEmail, reconcile,
   type Detected, type OpsSignals, type StoredAlert,
@@ -44,7 +46,34 @@ export async function detectProblems(admin: AnyClient, now: Date): Promise<Detec
       title: f.title,
       detail: f.detail,
     }));
-  return [...marketing, ...assessOpsSignals(signals.data as OpsSignals, now)];
+  return [...marketing, ...assessOpsSignals(signals.data as OpsSignals, now), ...(await detectHealthProblems(admin, now))];
+}
+
+/**
+ * Platform health. If the checks themselves cannot run, that is reported as a
+ * problem of its own rather than failing the whole monitor (which would hide
+ * the marketing and security checks too).
+ */
+async function detectHealthProblems(admin: AnyClient, now: Date): Promise<Detected[]> {
+  try {
+    const report = await collectHealth(admin);
+    return assessHealth(report, now)
+      .filter((f) => f.severity === "problem" || f.severity === "warning")
+      .map((f) => ({
+        fingerprint: `health:${f.id}`,
+        source: "health",
+        severity: f.severity as "problem" | "warning",
+        title: f.title,
+        detail: f.detail,
+      }));
+  } catch (error) {
+    console.error("ops-monitor: health checks could not run:", error instanceof Error ? error.message : error);
+    return [{
+      fingerprint: "health:checks-failed", source: "health", severity: "warning",
+      title: "The platform health checks could not run",
+      detail: "The monitor could not read the platform's health. Other checks still ran.",
+    }];
+  }
 }
 
 async function sendEmail(message: { subject: string; text: string; html: string }): Promise<string | null> {

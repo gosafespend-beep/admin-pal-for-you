@@ -19,6 +19,7 @@ const day = (iso: string) => format(new Date(iso), "MMM d, yyyy");
 const WHERE: Array<[RegExp, string, string]> = [
   [/^marketing:/, "/marketing", "Open Marketing"],
   [/^privacy:/, "/data-requests", "Open Data requests"],
+  [/^health:/, "/system", "Open System health"],
   [/^security:/, "/users", "Open Users"],
 ];
 
