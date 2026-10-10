@@ -112,3 +112,12 @@ Note: the older `watchdog` function was never scheduled and its sender address i
 
 Order: apply 13 -> merge -> deploy `admin-health` (new) and redeploy `ops-monitor` and `admin-alerts` (they now include the health checks).
 The health checks make one cheap authenticated call each to Paystack (balance), Resend (domains) and Anthropic (model list) and return only a fixed status sentence.
+
+## Marketing fixes (applied 2026-10-10)
+
+| # | File | Effect |
+|---|------|--------|
+| 12 | `12_ops_monitor_schedule.sql` | Applied: `ops-monitor` runs every 30 minutes. |
+| 14 | `14_marketing_fixes.sql` | Applied: renews the Instagram and Threads logins every Monday (03:30 / 03:40 UTC) and replaces the placeholder report sender with `info@gosafespend.com`. |
+
+The two logins were also renewed by hand the same day (now valid to 2026-12-09), and the ten posts left over from Aug 12-13 were marked rejected.
