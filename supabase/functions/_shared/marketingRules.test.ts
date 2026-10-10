@@ -118,4 +118,19 @@ describe("assessMarketing", () => {
     const f = assessMarketing({ ...healthy, queue: { ...healthy.queue, scheduledOverdue: 1 }, publishing: { lastPublishedAt: "2026-09-01T00:00:00Z", byChannel: [] } }, NOW);
     expect(f.map((x) => x.severity)).toEqual(["problem", "warning"]);
   });
+
+  it("shows a deliberate pause as information and stops calling the quiet period a stall", () => {
+    const pause = { scope: "agent" as const, target: "S4R", reason: "Credits are out, stop retrying", pausedAt: "2026-10-09T10:00:00Z", batch: null };
+    const f = assessMarketing({ ...healthy, publishing: { lastPublishedAt: "2026-09-01T00:00:00Z", byChannel: [] }, pauses: [pause] }, NOW);
+    expect(f.map((x) => [x.id, x.severity])).toEqual([["paused", "info"]]);
+    expect(f.some((x) => x.id === "stalled")).toBe(false);
+    expect(f[0].detail).toContain("Credits are out");
+  });
+
+  it("warns when a pause has been left on for two weeks", () => {
+    const pause = { scope: "channel" as const, target: "threads", reason: "Account under review", pausedAt: "2026-09-20T00:00:00Z", batch: null };
+    const f = assessMarketing({ ...healthy, pauses: [pause] }, NOW);
+    expect(f[0]).toMatchObject({ id: "paused", severity: "warning" });
+    expect(f[0].title).toBe("Marketing has been paused for 19 days");
+  });
 });
