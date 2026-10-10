@@ -92,3 +92,14 @@ Note: the starter replies are drafts. Read and edit them on the Support page bef
 | 10 | `10_marketing_overview.sql` | **Before** deploying `admin-marketing` | Adds `admin_marketing_overview()` (service role only, read-only). Reports on the `sgs_*` marketing system; never reads token values, only expiry dates. Additive. |
 
 Order: merge PR #7 first (this branch is stacked on it) -> apply 10 -> merge -> deploy `admin-marketing` (new).
+
+## Phase 3, slice 2 (alerting)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 11 | `11_ops_alerts.sql` | **Before** deploying `ops-monitor` and `admin-alerts` | Creates the `ops_alerts` table (no policies; service role only) and `admin_ops_signals()` (service role only). Additive. |
+| 12 | `12_ops_monitor_schedule.sql` | **Last**, after both functions are deployed | Schedules `ops-monitor` every 30 minutes (secret read from Vault, same as the billing monitor). The first run emails about whatever is already wrong. Idempotent. |
+
+Order: apply 11 -> merge -> deploy `ops-monitor` and `admin-alerts` (both new) -> apply 12.
+Email uses the server's existing `RESEND_API_KEY` and `ALERT_EMAIL` (default info@gosafespend.com), the same as the billing monitor. The Alerts page says whether email is configured.
+Note: the older `watchdog` function was never scheduled and its sender address is still a placeholder; `ops-monitor` replaces it.
