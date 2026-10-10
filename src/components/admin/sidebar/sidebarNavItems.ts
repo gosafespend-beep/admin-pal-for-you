@@ -15,6 +15,7 @@ import {
   LifeBuoy,
   Megaphone,
   BellRing,
+  Activity,
 } from "lucide-react";
 
 export const overviewNavItems = [
@@ -47,6 +48,7 @@ export const insightsNavItems = [
 ];
 
 export const systemNavItems = [
+  { title: "System health", url: "/system", icon: Activity },
   { title: "Alerts", url: "/alerts", icon: BellRing },
   { title: "Settings", url: "/settings", icon: Settings },
 ];

@@ -21,6 +21,7 @@ const DataRequests = lazy(() => import("./pages/admin/DataRequests"));
 const Support = lazy(() => import("./pages/admin/Support"));
 const Marketing = lazy(() => import("./pages/admin/Marketing"));
 const Alerts = lazy(() => import("./pages/admin/Alerts"));
+const SystemHealth = lazy(() => import("./pages/admin/SystemHealth"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const Analytics = lazy(() => import("./pages/admin/Analytics"));
 const AuditLog = lazy(() => import("./pages/admin/AuditLog"));
@@ -88,6 +89,7 @@ const router = createBrowserRouter([
           { path: "support", element: <Support /> },
           { path: "marketing", element: <Marketing /> },
           { path: "alerts", element: <Alerts /> },
+          { path: "system", element: <SystemHealth /> },
           { path: "subscriptions", element: <Subscriptions /> },
           { path: "analytics", element: <Analytics /> },
           { path: "audit-log", element: <AuditLog /> },

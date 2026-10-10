@@ -103,3 +103,12 @@ Order: merge PR #7 first (this branch is stacked on it) -> apply 10 -> merge -> 
 Order: apply 11 -> merge -> deploy `ops-monitor` and `admin-alerts` (both new) -> apply 12.
 Email uses the server's existing `RESEND_API_KEY` and `ALERT_EMAIL` (default info@gosafespend.com), the same as the billing monitor. The Alerts page says whether email is configured.
 Note: the older `watchdog` function was never scheduled and its sender address is still a placeholder; `ops-monitor` replaces it.
+
+## Phase 3, slice 3 (system health)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 13 | `13_health_signals.sql` | **Before** deploying `admin-health` and the updated `ops-monitor` / `admin-alerts` | Adds `admin_health_signals()` (service role only, read-only): database size and connections, when each automatic process last ran, failed scheduled jobs, and error answers to scheduled calls. Additive. |
+
+Order: apply 13 -> merge -> deploy `admin-health` (new) and redeploy `ops-monitor` and `admin-alerts` (they now include the health checks).
+The health checks make one cheap authenticated call each to Paystack (balance), Resend (domains) and Anthropic (model list) and return only a fixed status sentence.
