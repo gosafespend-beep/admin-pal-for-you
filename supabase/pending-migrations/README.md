@@ -112,3 +112,12 @@ Note: the older `watchdog` function was never scheduled and its sender address i
 
 Order: apply 13 -> merge -> deploy `admin-health` (new) and redeploy `ops-monitor` and `admin-alerts` (they now include the health checks).
 The health checks make one cheap authenticated call each to Paystack (balance), Resend (domains) and Anthropic (model list) and return only a fixed status sentence.
+
+## Phase 3, slice 4 (marketing pause and resume)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 15 | `15_marketing_controls.sql` | **Before** deploying the updated `admin-marketing`, `ops-monitor` and `admin-alerts` | Creates `marketing_pauses` (service role only) and four service-role-only functions that pause and resume one agent, one channel, or everything, remembering what each was so resume restores it exactly. Nothing changes until someone presses a button. |
+
+Order: apply 15 -> merge -> redeploy `admin-marketing`, `ops-monitor`, `admin-alerts`.
+What the switches do (checked against the code that obeys them): a paused agent is refused by `agent-run`; a channel switched off is skipped by `publish-direct`. Posts already scheduled for a channel that is off are marked failed by `social-release`. TikTok, X and YouTube go through Buffer and are controlled by the separate `distribute_*` settings, not by these switches.

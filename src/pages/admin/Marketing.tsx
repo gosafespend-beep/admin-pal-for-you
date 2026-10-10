@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
-import { AlertTriangle, CheckCircle2, Info, Megaphone, RefreshCw, XCircle } from "lucide-react";
-import { useMarketingOverview } from "@/hooks/admin/useAdminMarketing";
+import { AlertTriangle, CheckCircle2, Info, Megaphone, PauseCircle, PlayCircle, RefreshCw, XCircle } from "lucide-react";
+import { useMarketingControl, useMarketingOverview } from "@/hooks/admin/useAdminMarketing";
+import { ReasonConfirmDialog } from "@/components/admin/ReasonConfirmDialog";
 import { assessMarketing, classifyError, type Finding, type MarketingOverview, type Severity } from "../../../supabase/functions/_shared/marketingRules";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,49 @@ function Stat({ label, value, sub, tone }: { label: string; value: React.ReactNo
       <p className="text-xs text-muted-foreground">{label}</p>
       {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
     </CardContent></Card>
+  );
+}
+
+type Pending = { action: "pause" | "resume"; scope: "agent" | "channel" | "all"; target?: string; label: string } | null;
+type Pauses = NonNullable<MarketingOverview["pauses"]>;
+type AskFn = (p: NonNullable<Pending>) => void;
+
+const isPaused = (pauses: Pauses, scope: "agent" | "channel", target: string) => pauses.some((p) => p.scope === scope && p.target === target);
+
+/** What pressing the button will do, in words, so nobody is surprised. */
+function describePending(p: NonNullable<Pending>): { title: string; body: string; confirm: string } {
+  if (p.action === "resume") {
+    return p.scope === "all"
+      ? { title: "Resume everything", body: "Everything that was paused with Pause everything goes back exactly as it was. Anything you paused one at a time stays paused.", confirm: "Resume everything" }
+      : { title: `Resume ${p.label}`, body: "It goes back to how it was before it was paused.", confirm: "Resume" };
+  }
+  if (p.scope === "all") {
+    return { title: "Pause everything", body: "Stops every agent from writing and every switched-on channel from posting. Facebook, Threads and Instagram post directly and will stop. TikTok, X and YouTube are controlled by separate settings and are already off. Posts already scheduled for a channel are marked failed when their time comes. Resuming puts everything back exactly as it was.", confirm: "Pause everything" };
+  }
+  if (p.scope === "agent") {
+    return { title: `Pause ${p.label}`, body: "It will refuse to run, so it writes nothing and spends nothing. Resuming puts it back exactly as it was.", confirm: "Pause" };
+  }
+  return { title: `Pause ${p.label}`, body: "Nothing will be posted there. A post already scheduled for it is marked failed when its time comes. Resuming switches the channel back on.", confirm: "Pause" };
+}
+
+function PauseButton({ paused, onClick, label }: { paused: boolean; onClick: () => void; label: string }) {
+  return paused
+    ? <Button size="sm" variant="outline" className="gap-1.5" onClick={onClick} aria-label={`Resume ${label}`}><PlayCircle className="h-4 w-4" />Resume</Button>
+    : <Button size="sm" variant="ghost" className="gap-1.5" onClick={onClick} aria-label={`Pause ${label}`}><PauseCircle className="h-4 w-4" />Pause</Button>;
+}
+
+function PausedBanner({ pauses, ask }: { pauses: Pauses; ask: AskFn }) {
+  if (pauses.length === 0) return null;
+  const anyBatch = pauses.some((p) => p.batch);
+  return (
+    <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <PauseCircle className="h-5 w-5 shrink-0 text-warning" />
+        <p className="flex-1 text-sm font-medium">Marketing is paused: {pauses.filter((p) => p.scope === "agent").length} agents and {pauses.filter((p) => p.scope === "channel").length} channels. Nothing new is written or posted for them.</p>
+        {anyBatch && <Button size="sm" onClick={() => ask({ action: "resume", scope: "all", label: "everything" })}>Resume everything</Button>}
+      </div>
+      <p className="mt-2 pl-8 text-xs text-muted-foreground">Since {day(pauses[0].pausedAt)}: {pauses[0].reason}</p>
+    </div>
   );
 }
 
@@ -134,7 +178,8 @@ function OverviewTab({ o, findings }: { o: MarketingOverview; findings: Finding[
   );
 }
 
-function AgentsTab({ o }: { o: MarketingOverview }) {
+function AgentsTab({ o, ask }: { o: MarketingOverview; ask: AskFn }) {
+  const pauses = o.pauses ?? [];
   return (
     <div className="space-y-4">
       {o.runs.failing.length > 0 && (
@@ -166,7 +211,7 @@ function AgentsTab({ o }: { o: MarketingOverview }) {
         <CardHeader><CardTitle>Agents</CardTitle><CardDescription>"Shadow" agents run without publishing. Cost is for the last 30 days; the cap is per day.</CardDescription></CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
-            <TableHeader><TableRow><TableHead>Agent</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Runs</TableHead><TableHead className="text-right">Failed</TableHead><TableHead className="text-right">Cost</TableHead><TableHead className="text-right">Today / cap</TableHead><TableHead>Last run</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Agent</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Runs</TableHead><TableHead className="text-right">Failed</TableHead><TableHead className="text-right">Cost</TableHead><TableHead className="text-right">Today / cap</TableHead><TableHead>Last run</TableHead><TableHead className="text-right">Control</TableHead></TableRow></TableHeader>
             <TableBody>
               {o.spend.agents.map((a) => (
                 <TableRow key={a.id}>
@@ -177,6 +222,11 @@ function AgentsTab({ o }: { o: MarketingOverview }) {
                   <TableCell className="text-right">{usd(a.cost30d)}</TableCell>
                   <TableCell className="text-right">{usd(a.costToday)}{a.capUsdDay ? ` / ${usd(a.capUsdDay)}` : ""}</TableCell>
                   <TableCell>{ago(a.lastRunAt)}</TableCell>
+                  <TableCell className="text-right">
+                    {a.status !== "deprecated" && (isPaused(pauses, "agent", a.id) || a.status !== "paused") && (
+                      <PauseButton label={a.codename} paused={isPaused(pauses, "agent", a.id)} onClick={() => ask({ action: isPaused(pauses, "agent", a.id) ? "resume" : "pause", scope: "agent", target: a.id, label: a.codename })} />
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -187,14 +237,15 @@ function AgentsTab({ o }: { o: MarketingOverview }) {
   );
 }
 
-function ChannelsTab({ o }: { o: MarketingOverview }) {
+function ChannelsTab({ o, ask }: { o: MarketingOverview; ask: AskFn }) {
+  const pauses = o.pauses ?? [];
   return (
     <div className="space-y-4">
       <Card className="glass-card">
         <CardHeader><CardTitle>Channels</CardTitle><CardDescription>Connection health is checked once a day. Login tokens are never shown, only when they expire.</CardDescription></CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
-            <TableHeader><TableRow><TableHead>Channel</TableHead><TableHead>Status</TableHead><TableHead>Health</TableHead><TableHead>Login expires</TableHead><TableHead>Login renewed</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Channel</TableHead><TableHead>Status</TableHead><TableHead>Health</TableHead><TableHead>Login expires</TableHead><TableHead>Login renewed</TableHead><TableHead className="text-right">Control</TableHead></TableRow></TableHeader>
             <TableBody>
               {o.channels.map((c) => {
                 const left = c.tokenExpiresAt ? Math.floor((new Date(c.tokenExpiresAt).getTime() - Date.now()) / 86_400_000) : null;
@@ -205,6 +256,11 @@ function ChannelsTab({ o }: { o: MarketingOverview }) {
                     <TableCell>{c.healthOk === null ? <span className="text-muted-foreground">—</span> : c.healthOk ? <span className="text-primary">OK</span> : <span className="text-destructive">{c.healthDetail || "Failing"}</span>}{c.checkedAt && <span className="ml-2 text-xs text-muted-foreground">{ago(c.checkedAt)}</span>}</TableCell>
                     <TableCell className={cn(left !== null && left < 7 && "font-medium text-destructive")}>{c.tokenExpiresAt ? `${day(c.tokenExpiresAt)} (${left! < 0 ? "expired" : `${left}d`})` : "No expiry"}</TableCell>
                     <TableCell>{c.tokenUpdatedAt ? day(c.tokenUpdatedAt) : "—"}</TableCell>
+                    <TableCell className="text-right">
+                      {(c.enabled || isPaused(pauses, "channel", c.platform)) && (
+                        <PauseButton label={c.platform} paused={isPaused(pauses, "channel", c.platform)} onClick={() => ask({ action: isPaused(pauses, "channel", c.platform) ? "resume" : "pause", scope: "channel", target: c.platform, label: c.platform })} />
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -255,6 +311,10 @@ function ChannelsTab({ o }: { o: MarketingOverview }) {
 export default function Marketing() {
   const { data: o, isLoading, error, refetch, isFetching } = useMarketingOverview();
   const findings = useMemo(() => (o ? assessMarketing(o) : []), [o]);
+  const control = useMarketingControl();
+  const [pending, setPending] = useState<Pending>(null);
+  const info = pending ? describePending(pending) : null;
+  const pauses = o?.pauses ?? [];
 
   if (error) {
     return <div className="animate-fade-in"><AdminErrorState icon={Megaphone} title="Failed to load the marketing report" description={error.message} onRetry={() => refetch()} /></div>;
@@ -267,14 +327,23 @@ export default function Marketing() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Marketing</h1>
           <p className="text-muted-foreground">The automated posting system: is it running, what it costs, and whether its logins are healthy.</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-2 self-start" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />Refresh
-        </Button>
+        <div className="flex gap-2 self-start">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />Refresh
+          </Button>
+          {o && (
+            <Button variant="outline" size="sm" className="gap-2 text-destructive" onClick={() => setPending({ action: "pause", scope: "all", label: "everything" })}>
+              <PauseCircle className="h-4 w-4" />Pause everything
+            </Button>
+          )}
+        </div>
       </div>
 
       {isLoading || !o ? (
         <div className="space-y-4"><div className="h-40 shimmer rounded-xl" /><div className="h-64 shimmer rounded-xl" /></div>
       ) : (
+        <>
+        <PausedBanner pauses={pauses} ask={setPending} />
         <Tabs defaultValue="overview" className="space-y-4">
           <TabsList className="bg-muted/50 p-1">
             <TabsTrigger value="overview" className="data-[state=active]:bg-background">Overview</TabsTrigger>
@@ -282,10 +351,20 @@ export default function Marketing() {
             <TabsTrigger value="channels" className="data-[state=active]:bg-background">Channels &amp; jobs</TabsTrigger>
           </TabsList>
           <TabsContent value="overview"><OverviewTab o={o} findings={findings} /></TabsContent>
-          <TabsContent value="agents"><AgentsTab o={o} /></TabsContent>
-          <TabsContent value="channels"><ChannelsTab o={o} /></TabsContent>
+          <TabsContent value="agents"><AgentsTab o={o} ask={setPending} /></TabsContent>
+          <TabsContent value="channels"><ChannelsTab o={o} ask={setPending} /></TabsContent>
         </Tabs>
+        </>
       )}
+
+      <ReasonConfirmDialog
+        open={!!pending} onOpenChange={(open) => !open && setPending(null)}
+        title={info?.title ?? ""} description={info?.body ?? ""}
+        reasonLabel={pending?.action === "resume" ? "Why is it OK to resume?" : "Why are you pausing?"}
+        reasonPlaceholder={pending?.action === "resume" ? "e.g. AI credit topped up" : "e.g. AI credit is out, stop retrying until it is fixed"}
+        confirmLabel={info?.confirm ?? "Confirm"} destructive={pending?.action === "pause"} pending={control.isPending}
+        onConfirm={({ reason }) => pending && control.mutate({ action: pending.action, scope: pending.scope, target: pending.target, reason }, { onSuccess: () => setPending(null) })}
+      />
     </div>
   );
 }
