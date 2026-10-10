@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen, LifeBuoy, Megaphone, BellRing, Activity } from "lucide-react";
+import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen, LifeBuoy, Megaphone, BellRing, Activity, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -21,6 +21,7 @@ const pages = [
   { name: "Settings", path: "/settings", icon: Settings, keywords: "config health admins" },
   { name: "Support", path: "/support", icon: LifeBuoy, keywords: "help lookup find customer reply macro email ticket" },
   { name: "Marketing", path: "/marketing", icon: Megaphone, keywords: "social posts agents ai spend credits instagram threads facebook pipeline tokens" },
+  { name: "Messages", path: "/messages", icon: Mail, keywords: "email lifecycle welcome nudge trial reminder unsubscribe send campaign" },
   { name: "System health", path: "/system", icon: Activity, keywords: "status uptime database services paystack resend ai down slow cron jobs" },
   { name: "Alerts", path: "/alerts", icon: BellRing, keywords: "monitor problems warnings email outage down incidents" },
   { name: "Data requests", path: "/data-requests", icon: ClipboardList, keywords: "gdpr dsar delete export privacy consent retention" },

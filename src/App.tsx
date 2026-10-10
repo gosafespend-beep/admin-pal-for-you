@@ -22,6 +22,8 @@ const Support = lazy(() => import("./pages/admin/Support"));
 const Marketing = lazy(() => import("./pages/admin/Marketing"));
 const Alerts = lazy(() => import("./pages/admin/Alerts"));
 const SystemHealth = lazy(() => import("./pages/admin/SystemHealth"));
+const Lifecycle = lazy(() => import("./pages/admin/Lifecycle"));
+const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const Analytics = lazy(() => import("./pages/admin/Analytics"));
 const AuditLog = lazy(() => import("./pages/admin/AuditLog"));
@@ -73,6 +75,7 @@ const router = createBrowserRouter([
     element: <RootLayout />,
     children: [
       { path: "/login", element: <AdminLogin /> },
+      { path: "/unsubscribe", element: <Unsubscribe /> },
       {
         path: "/",
         element: <AdminLayout />,
@@ -90,6 +93,7 @@ const router = createBrowserRouter([
           { path: "marketing", element: <Marketing /> },
           { path: "alerts", element: <Alerts /> },
           { path: "system", element: <SystemHealth /> },
+          { path: "messages", element: <Lifecycle /> },
           { path: "subscriptions", element: <Subscriptions /> },
           { path: "analytics", element: <Analytics /> },
           { path: "audit-log", element: <AuditLog /> },

@@ -115,6 +115,8 @@ export function reconcile(found: Detected[], stored: StoredAlert[], now: Date = 
 export interface OpsSignals {
   admins: Array<{ userId: string; email: string | null; grantedAt: string }>;
   dataRequests: { overdue: number; dueSoon: number; oldestOverdue: string | null };
+  /** Present once migration 16 is applied. */
+  lifecycle?: { mode: string; failed24h: number };
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -144,6 +146,13 @@ export function assessOpsSignals(s: OpsSignals, now: Date = new Date()): Detecte
       fingerprint: "privacy:requests-due-soon", source: "privacy", severity: "warning",
       title: `${plural(s.dataRequests.dueSoon, "data request")} due within 7 days`,
       detail: "Open Data requests to deal with them before they become late.",
+    });
+  }
+  if (s.lifecycle && s.lifecycle.failed24h >= 3) {
+    out.push({
+      fingerprint: "lifecycle:failing", source: "lifecycle", severity: "warning",
+      title: `${plural(s.lifecycle.failed24h, "lifecycle email")} failed in the last day`,
+      detail: "Customer emails are not going out. The Messages page shows the recent failures and the reason.",
     });
   }
   return out;
