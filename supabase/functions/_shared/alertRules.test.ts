@@ -88,6 +88,14 @@ describe("assessOpsSignals", () => {
     expect(a.detail).toContain("new@x.co");
   });
 
+  it("warns when lifecycle emails keep failing, but not for a one-off", () => {
+    const withLifecycle = (failed24h: number) => assessOpsSignals({ ...base, lifecycle: { mode: "live", failed24h } }, NOW);
+    expect(withLifecycle(2)).toEqual([]);
+    const [a] = withLifecycle(3);
+    expect(a).toMatchObject({ fingerprint: "lifecycle:failing", severity: "warning", title: "3 lifecycle emails failed in the last day" });
+    expect(assessOpsSignals(base, NOW)).toEqual([]);
+  });
+
   it("flags overdue and soon-due data requests", () => {
     const out = assessOpsSignals({ ...base, dataRequests: { overdue: 2, dueSoon: 1, oldestOverdue: ago(30) } }, NOW);
     expect(out.map((o) => [o.fingerprint, o.severity])).toEqual([["privacy:requests-overdue", "problem"], ["privacy:requests-due-soon", "warning"]]);
