@@ -140,7 +140,7 @@ export function useBlogActions() {
       });
       if (response.error) {
         let message = response.error.message;
-        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch { /* the error body was not JSON, so keep the message we already have */ }
         throw new Error(message);
       }
       if (response.data?.error) throw new Error(response.data.error);
@@ -163,7 +163,7 @@ export function useBlogActions() {
       });
       if (response.error) {
         let message = response.error.message;
-        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch { /* the error body was not JSON, so keep the message we already have */ }
         throw new Error(message);
       }
       if (response.data?.error) throw new Error(response.data.error);
@@ -186,7 +186,7 @@ export function useBlogActions() {
       });
       if (response.error) {
         let message = response.error.message;
-        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch { /* the error body was not JSON, so keep the message we already have */ }
         throw new Error(message);
       }
       return response.data;
@@ -208,7 +208,7 @@ export function useBlogActions() {
       });
       if (response.error) {
         let message = response.error.message;
-        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch { /* the error body was not JSON, so keep the message we already have */ }
         throw new Error(message);
       }
       return response.data.data as BlogPost;
@@ -230,7 +230,7 @@ export function useBlogActions() {
       });
       if (response.error) {
         let message = response.error.message;
-        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch { /* the error body was not JSON, so keep the message we already have */ }
         throw new Error(message);
       }
       return response.data;
@@ -252,7 +252,7 @@ export function useBlogActions() {
       });
       if (response.error) {
         let message = response.error.message;
-        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch {}
+        try { const body = await response.error.context?.json(); if (body?.error) message = body.error; } catch { /* the error body was not JSON, so keep the message we already have */ }
         throw new Error(message);
       }
       return response.data;

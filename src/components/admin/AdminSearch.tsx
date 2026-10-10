@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useSupportLookup } from "@/hooks/admin/useAdminSupport";
 import { useNavigate } from "react-router-dom";
 import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen, LifeBuoy, Megaphone, BellRing, Activity, Mail, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,16 @@ const pages = [
 
 export function AdminSearch() {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
   const navigate = useNavigate();
+
+  // Wait for a pause in typing before asking the server who matches.
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+  const people = useSupportLookup(open ? debounced : "");
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -52,6 +62,7 @@ export function AdminSearch() {
   const handleSelect = useCallback(
     (path: string) => {
       setOpen(false);
+      setQuery("");
       navigate(path);
     },
     [navigate]
@@ -72,10 +83,20 @@ export function AdminSearch() {
         </kbd>
       </Button>
 
-      <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Search admin pages..." />
+      <CommandDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
+        <CommandInput placeholder="Search pages, or type a name or email to find a person..." value={query} onValueChange={setQuery} />
         <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandEmpty>{people.isFetching ? "Searching..." : "No results found."}</CommandEmpty>
+          {debounced.length >= 3 && (people.data?.users?.length ?? 0) > 0 && (
+            <CommandGroup heading="People">
+              {people.data!.users.map((u) => (
+                <CommandItem key={u.id} value={`${debounced} ${u.email} ${u.display_name ?? ""}`} onSelect={() => handleSelect(`/users/${u.id}`)}>
+                  <Users className="mr-2 h-4 w-4" />
+                  <span className="min-w-0 flex-1 truncate">{u.display_name || "No name"} <span className="text-muted-foreground">{u.email}</span></span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
           <CommandGroup heading="Pages">
             {pages.map((page) => (
               <CommandItem

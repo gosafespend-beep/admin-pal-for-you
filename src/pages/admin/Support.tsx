@@ -410,7 +410,10 @@ export default function Support() {
 
   const set = (next: Record<string, string | null>) => {
     const p = new URLSearchParams(params);
-    for (const [k, v] of Object.entries(next)) (v ? p.set(k, v) : p.delete(k));
+    for (const [k, v] of Object.entries(next)) {
+      if (v) p.set(k, v);
+      else p.delete(k);
+    }
     setParams(p);
   };
   const submit = (e: React.FormEvent) => {

@@ -23,4 +23,24 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    // The edge functions run on Deno against an untyped Supabase client, and mark each deliberate `any`
+    // with a deno-lint-ignore comment. They are type-checked by `deno check` in CI instead.
+    files: ["supabase/functions/**/*.ts"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
+  },
+  {
+    // shadcn/ui components are generated: they export variants next to components and use empty
+    // extending interfaces by design. Re-generating them would undo any fix made here.
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+      "@typescript-eslint/no-empty-object-type": "off",
+    },
+  },
+  {
+    // Tailwind plugins are loaded with require() by convention.
+    files: ["tailwind.config.ts"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 );

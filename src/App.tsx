@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { AdminLayout } from "./components/admin/AdminLayout";
+import { RouteError } from "./components/admin/RouteError";
 
 // Lazy load all page components
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -74,6 +75,7 @@ const RootLayout = () => (
 const router = createBrowserRouter([
   {
     element: <RootLayout />,
+    errorElement: <RouteError />,
     children: [
       { path: "/login", element: <AdminLogin /> },
       { path: "/unsubscribe", element: <Unsubscribe /> },
