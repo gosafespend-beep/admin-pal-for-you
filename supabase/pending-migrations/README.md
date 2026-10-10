@@ -131,3 +131,12 @@ What the switches do (checked against the code that obeys them): a paused agent 
 
 Order: apply 16 -> merge -> deploy `admin-lifecycle`, `lifecycle-send`, `lifecycle-unsubscribe` (all new) and redeploy `ops-monitor` and `admin-alerts` -> apply 17.
 Safety: Sending has three modes (off, dry run, live) and starts Off. A template only reaches people whose trigger happens after it is switched on, never a backlog. Marketing-type email (the nudge) goes only to people with `marketing_emails = true` (the app default is false; today that is 1 account) and always carries a one-click unsubscribe. The unsubscribe page is a public route on the admin site (`/unsubscribe`) because Supabase does not render HTML from functions.
+
+## Phase 3, slice 6 (product control plane)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 18 | `18_control_plane.sql` | **Before** deploying `admin-controls` and `app-config` | Creates `app_control` (one row: banner and per-store versions, everything off) and `app_flags` (empty), service role only, and `admin_app_versions()`. Applying it changes nothing for anyone. |
+
+Order (stacked on the lifecycle PR, so merge that first): apply 18 -> merge -> deploy `admin-controls` and `app-config` (both new).
+`app-config` is public on purpose (the apps call it before sign-in). It takes only a validated platform, version and id, writes nothing, and returns only what an admin chose to show everyone. Apps do not read it yet; see `docs/app-config-integration.md` for what a release needs to add. Apps must fail open.
