@@ -121,3 +121,22 @@ The health checks make one cheap authenticated call each to Paystack (balance), 
 
 Order: apply 15 -> merge -> redeploy `admin-marketing`, `ops-monitor`, `admin-alerts`.
 What the switches do (checked against the code that obeys them): a paused agent is refused by `agent-run`; a channel switched off is skipped by `publish-direct`. Posts already scheduled for a channel that is off are marked failed by `social-release`. TikTok, X and YouTube go through Buffer and are controlled by the separate `distribute_*` settings, not by these switches.
+
+## Phase 3, slice 5 (lifecycle messaging)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 16 | `16_lifecycle_messaging.sql` | **Before** deploying the three lifecycle functions and the updated `ops-monitor` / `admin-alerts` | Creates the lifecycle tables (settings, three templates seeded and switched OFF, sends log, unsubscribe tokens) and service-role-only functions. Sending ships OFF. Also replaces `admin_ops_signals()` with a version that adds a lifecycle-failure count. Applying it sends nothing. |
+| 17 | `17_lifecycle_schedule.sql` | **Last**, after 16 and after `lifecycle-send` is deployed | Runs `lifecycle-send` hourly. It does nothing while Sending is Off. |
+
+Order: apply 16 -> merge -> deploy `admin-lifecycle`, `lifecycle-send`, `lifecycle-unsubscribe` (all new) and redeploy `ops-monitor` and `admin-alerts` -> apply 17.
+Safety: Sending has three modes (off, dry run, live) and starts Off. A template only reaches people whose trigger happens after it is switched on, never a backlog. Marketing-type email (the nudge) goes only to people with `marketing_emails = true` (the app default is false; today that is 1 account) and always carries a one-click unsubscribe. The unsubscribe page is a public route on the admin site (`/unsubscribe`) because Supabase does not render HTML from functions.
+
+## Phase 3, slice 6 (product control plane)
+
+| # | File | Apply when | Effect |
+|---|------|------------|--------|
+| 18 | `18_control_plane.sql` | **Before** deploying `admin-controls` and `app-config` | Creates `app_control` (one row: banner and per-store versions, everything off) and `app_flags` (empty), service role only, and `admin_app_versions()`. Applying it changes nothing for anyone. |
+
+Order (stacked on the lifecycle PR, so merge that first): apply 18 -> merge -> deploy `admin-controls` and `app-config` (both new).
+`app-config` is public on purpose (the apps call it before sign-in). It takes only a validated platform, version and id, writes nothing, and returns only what an admin chose to show everyone. Apps do not read it yet; see `docs/app-config-integration.md` for what a release needs to add. Apps must fail open.

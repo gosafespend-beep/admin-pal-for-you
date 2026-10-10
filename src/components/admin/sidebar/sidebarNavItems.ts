@@ -16,6 +16,8 @@ import {
   Megaphone,
   BellRing,
   Activity,
+  Mail,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export const overviewNavItems = [
@@ -25,6 +27,7 @@ export const overviewNavItems = [
 export const userNavItems = [
   { title: "Users", url: "/users", icon: Users },
   { title: "Support", url: "/support", icon: LifeBuoy },
+  { title: "Messages", url: "/messages", icon: Mail },
   { title: "Waitlist", url: "/waitlist", icon: ClipboardList },
   { title: "Data requests", url: "/data-requests", icon: ShieldCheck },
 ];
@@ -49,6 +52,7 @@ export const insightsNavItems = [
 
 export const systemNavItems = [
   { title: "System health", url: "/system", icon: Activity },
+  { title: "App controls", url: "/app-controls", icon: SlidersHorizontal },
   { title: "Alerts", url: "/alerts", icon: BellRing },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
