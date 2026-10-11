@@ -88,3 +88,17 @@ export function useAdminUsers(filters?: AdminUsersFilters) {
     staleTime: 30000,
   });
 }
+
+/** Finds people by name or email for the Ctrl/Cmd-K box. Runs only once there is something worth searching for. */
+export function usePeopleSearch(q: string) {
+  const search = q.trim();
+  return useQuery({
+    queryKey: ["admin", "people-search", search],
+    queryFn: () =>
+      invokeAdmin<AdminUsersResponse>("admin-users", {
+        query: { page: 1, pageSize: 6, sortBy: "created_at", sortOrder: "desc", search, role: "", verified: "", status: "", platform: "", plan: "", stage: "" },
+      }),
+    enabled: search.length >= 3,
+    staleTime: 30_000,
+  });
+}

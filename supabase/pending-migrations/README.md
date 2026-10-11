@@ -149,3 +149,14 @@ Safety: Sending has three modes (off, dry run, live) and starts Off. A template 
 
 Order (stacked on the lifecycle PR, so merge that first): apply 18 -> merge -> deploy `admin-controls` and `app-config` (both new).
 `app-config` is public on purpose (the apps call it before sign-in). It takes only a validated platform, version and id, writes nothing, and returns only what an admin chose to show everyone. Apps do not read it yet; see `docs/app-config-integration.md` for what a release needs to add. Apps must fail open.
+
+## Removed: Support page and Transactions page (2026-10-11)
+
+Support is handled by email and there is no in-app support, and individual transactions are customer
+data nobody needs to read, so both pages are gone, along with the `admin-support` and `admin-transactions`
+functions and the "reveal a person's transactions" action. The Ctrl/Cmd-K people search now uses the users list.
+
+Left in place on purpose (nothing reads them any more): the `support_macros` table, the
+`admin_support_snapshot(uuid)` function from migration 09, and the old deployed `admin-support` and
+`admin-transactions` functions, which can be deleted from the Supabase dashboard. Drop the table and function
+only if you are sure you will never want them back.

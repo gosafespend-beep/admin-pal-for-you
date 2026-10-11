@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { SidebarBranding } from "./sidebar/SidebarBranding";
-import { SidebarNavGroup } from "./sidebar/SidebarNavGroup";
+import { SidebarNavGroup, type NavBadge } from "./sidebar/SidebarNavGroup";
+import { useAlertSummary } from "@/hooks/admin/useAdminAlerts";
 import { overviewNavItems, userNavItems, financeNavItems, contentNavItems, insightsNavItems, systemNavItems } from "./sidebar/sidebarNavItems";
 
 interface AdminSidebarProps {
@@ -19,6 +20,12 @@ interface AdminSidebarProps {
 export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
   const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
+  const { data: alertSummary } = useAlertSummary();
+  const badges: Record<string, NavBadge | undefined> = {
+    "/alerts": alertSummary && alertSummary.needsAttention > 0
+      ? { count: alertSummary.needsAttention, tone: alertSummary.tone === "problem" ? "problem" : "warning" }
+      : undefined,
+  };
 
   return (
     <Sidebar
@@ -29,13 +36,13 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
 
       <Separator className="mx-4 w-auto bg-sidebar-border/50" />
 
-      <SidebarContent className="px-2 py-4">
+      <SidebarContent className="px-2 py-4" role="navigation" aria-label="Main menu">
         <SidebarNavGroup label="Overview" items={overviewNavItems} />
         <SidebarNavGroup label="User Management" items={userNavItems} className="mt-2" />
         <SidebarNavGroup label="Finance" items={financeNavItems} className="mt-2" />
         <SidebarNavGroup label="Content" items={contentNavItems} className="mt-2" />
         <SidebarNavGroup label="Insights" items={insightsNavItems} className="mt-2" />
-        <SidebarNavGroup label="System" items={systemNavItems} className="mt-2" />
+        <SidebarNavGroup label="System" items={systemNavItems} className="mt-2" badges={badges} />
       </SidebarContent>
 
       <SidebarFooter className="p-4">
@@ -48,6 +55,7 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
             "transition-all duration-200"
           )}
           onClick={onSignOut}
+          aria-label="Sign out"
         >
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-destructive/10">
             <LogOut className="h-4 w-4 text-destructive" />
@@ -59,6 +67,8 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
           size="icon"
           className="mt-2 w-full h-8 justify-center text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-lg"
           onClick={toggleSidebar}
+          aria-label={collapsed ? "Expand the menu" : "Collapse the menu"}
+          aria-expanded={!collapsed}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>

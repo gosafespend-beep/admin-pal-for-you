@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { 
   ClipboardList, 
+  Newspaper,
   Mail, 
   Clock,
   CheckCircle,
@@ -38,8 +39,18 @@ import { AdminErrorState } from "@/components/admin/AdminErrorState";
 import { MobileCardList } from "@/components/admin/MobileCardList";
 import { useExportCsv } from "@/hooks/admin/useExportCsv";
 
-// The sign-up forms write "waitlist" (join the waitlist) and "newsletter"
-// (subscribe only); pending/approved/rejected are kept for older rows.
+// The stored status values are unchanged ("waitlist", "newsletter", and the older
+// pending/approved/rejected), because the table, the function and the sign-up forms use them.
+// "waitlist" rows are people who signed up before the apps launched, so they are shown as
+// "Pre-launch" here; nothing is waiting for approval any more.
+const statusLabel: Record<string, string> = {
+  waitlist: "Pre-launch",
+  newsletter: "Newsletter",
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
 const statusConfig: Record<string, { color: string; icon: React.ElementType }> = {
   waitlist: { color: "bg-primary/10 text-primary border-primary/20", icon: ClipboardList },
   newsletter: { color: "bg-info/10 text-info border-info/20", icon: Mail },
@@ -48,7 +59,7 @@ const statusConfig: Record<string, { color: string; icon: React.ElementType }> =
   rejected: { color: "bg-destructive/10 text-destructive border-destructive/20", icon: XCircle },
 };
 
-export default function Waitlist() {
+export default function EmailList() {
   const [filters, setFilters] = useState<WaitlistFilters>({
     search: "",
     status: "",
@@ -72,7 +83,7 @@ export default function Waitlist() {
       <div className="animate-fade-in">
         <AdminErrorState
           icon={ClipboardList}
-          title="Failed to load waitlist"
+          title="Failed to load the email list"
           description="Please check your connection and try again."
           onRetry={() => refetch()}
         />
@@ -84,9 +95,9 @@ export default function Waitlist() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Waitlist</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Email list</h1>
           <p className="text-muted-foreground">
-            People who joined the waitlist or subscribed to the newsletter
+            People who subscribed to the newsletter, and people who signed up before the apps launched
           </p>
         </div>
         <div className="flex gap-2">
@@ -96,7 +107,7 @@ export default function Waitlist() {
           </Button>
           <Button variant="outline" size="sm" className="gap-2" onClick={() => exportCsv({
             resource: "waitlist",
-            filename: "waitlist-export",
+            filename: "email-list-export",
             rows: entries as unknown as Array<Record<string, unknown>>,
             filters: { search: filters.search, status: filters.status },
           })} disabled={!entries.length}>
@@ -116,7 +127,7 @@ export default function Waitlist() {
               </div>
               <div>
                 <p className="text-3xl font-bold text-foreground">{counts.total}</p>
-                <p className="text-sm text-muted-foreground">Total Entries</p>
+                <p className="text-sm text-muted-foreground">Total on the list</p>
               </div>
             </div>
           </CardContent>
@@ -129,7 +140,7 @@ export default function Waitlist() {
               </div>
               <div>
                 <p className="text-3xl font-bold text-foreground">{counts.waitlist ?? 0}</p>
-                <p className="text-sm text-muted-foreground">Waitlist</p>
+                <p className="text-sm text-muted-foreground">Pre-launch sign-ups</p>
               </div>
             </div>
           </CardContent>
@@ -154,8 +165,8 @@ export default function Waitlist() {
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <CardTitle>Entries</CardTitle>
-              <CardDescription>{data?.total || 0} total entries</CardDescription>
+              <CardTitle>Subscribers</CardTitle>
+              <CardDescription>{data?.total || 0} on the list</CardDescription>
             </div>
             <div className="flex gap-2 flex-wrap">
               <div className="relative flex-1 min-w-[200px]">
@@ -174,7 +185,7 @@ export default function Waitlist() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="waitlist">Waitlist</SelectItem>
+                  <SelectItem value="waitlist">Pre-launch</SelectItem>
                   <SelectItem value="newsletter">Newsletter</SelectItem>
                 </SelectContent>
               </Select>
@@ -207,7 +218,7 @@ export default function Waitlist() {
                   <TableCell colSpan={4} className="h-32 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <ClipboardList className="h-8 w-8 text-muted-foreground/50" />
-                      <p className="text-muted-foreground">No entries found</p>
+                      <p className="text-muted-foreground">Nobody found</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -226,7 +237,7 @@ export default function Waitlist() {
                       <TableCell>
                         <Badge className={`border ${sc.color} gap-1`}>
                           <StatusIcon className="h-3 w-3" />
-                          {entry.status}
+                          {statusLabel[entry.status] ?? entry.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -249,9 +260,9 @@ export default function Waitlist() {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete entry?</AlertDialogTitle>
+                                  <AlertDialogTitle>Remove from the list?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This will permanently remove {entry.email} from the waitlist.
+                                    This will permanently remove {entry.email} from the email list.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

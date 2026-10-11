@@ -102,6 +102,9 @@ Deno.serve(async (req) => {
       },
       trends: {
         userTrend: Math.round(userTrend * 10) / 10,
+        // The plain numbers. userTrend compares a part-month with a whole one, so the dashboard no longer shows it.
+        signupsThisMonth: currentMonthSignups,
+        signupsLastMonth: prevMonthSignups,
       },
       charts: {
         monthlyData,

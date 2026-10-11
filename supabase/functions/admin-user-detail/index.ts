@@ -83,8 +83,7 @@ Deno.serve(async (req) => {
         lastActiveAt: user.last_sign_in_at,
         accountAge: user.created_at,
       },
-      // Individual transactions are not sent by default. They are available
-      // through the reasoned, audited "reveal_transactions" action.
+      // Individual transactions are never sent to the admin panel; only counts are.
       recentTransactions: [],
       transactionsMasked: true,
       overview: overviewResult.data,

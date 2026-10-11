@@ -1,12 +1,8 @@
-import { useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
-import { Check, Circle, Eye, EyeOff, Globe, Smartphone, Bell, Database, Wallet } from "lucide-react";
+import { Check, Circle, Globe, Smartphone, Bell, Database } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ReasonConfirmDialog } from "@/components/admin/ReasonConfirmDialog";
-import { useRevealTransactions, type UserOverview, type RevealedTransaction } from "@/hooks/admin/useAdminUserDetail";
+import type { UserOverview } from "@/hooks/admin/useAdminUserDetail";
 import { cn } from "@/lib/utils";
 
 const when = (iso: string | null | undefined, withTime = false) =>
@@ -198,94 +194,5 @@ export function StoreEntitlements({ overview }: { overview: UserOverview }) {
         </div>
       ))}
     </div>
-  );
-}
-
-/**
- * Individual transactions are personal financial data, so they are not loaded
- * with the page. Showing them needs a written reason, which is recorded in the
- * audit log next to who looked and when.
- */
-export function MaskedTransactions({ userId, totals }: { userId: string; totals: { expenses: number; incomes: number } }) {
-  const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<RevealedTransaction[] | null>(null);
-  const reveal = useRevealTransactions();
-
-  return (
-    <Card className="glass-card overflow-hidden">
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
-        <div>
-          <CardTitle>Transactions</CardTitle>
-          <CardDescription>
-            {totals.expenses} expenses and {totals.incomes} incomes. Amounts, notes and categories are hidden unless you have a reason to look.
-          </CardDescription>
-        </div>
-        {rows ? (
-          <Button variant="outline" size="sm" onClick={() => setRows(null)}>
-            <EyeOff className="mr-2 h-4 w-4" /> Hide
-          </Button>
-        ) : (
-          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-            <Eye className="mr-2 h-4 w-4" /> Reveal recent
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent>
-        {!rows ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <Wallet className="mb-3 h-10 w-10 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">Hidden. Revealing is recorded in the audit log with your reason.</p>
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No transactions.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border/30">
-                <TableHead>Date</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Note</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((tx) => (
-                <TableRow key={`${tx.type}-${tx.id}`} className="border-border/30">
-                  <TableCell className="text-muted-foreground">{when(tx.date)}</TableCell>
-                  <TableCell className="capitalize">{tx.type}</TableCell>
-                  <TableCell className="text-muted-foreground">{tx.category || tx.source || "—"}</TableCell>
-                  <TableCell className="max-w-[220px] truncate text-muted-foreground">{tx.note || "—"}</TableCell>
-                  <TableCell className={cn("text-right font-medium", tx.type === "income" ? "text-primary" : "text-pink")}>
-                    {tx.type === "income" ? "+" : "-"}
-                    {new Intl.NumberFormat("en-US", { style: "currency", currency: tx.currency || "USD", maximumFractionDigits: 2 }).format(Number(tx.amount))}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-
-      <ReasonConfirmDialog
-        open={open}
-        onOpenChange={setOpen}
-        title="Reveal this person's transactions"
-        description="Their most recent 20 transactions will be shown, including amounts and notes. This view is logged with your reason."
-        confirmLabel="Reveal"
-        pending={reveal.isPending}
-        onConfirm={({ reason }) =>
-          reveal.mutate(
-            { userId, reason },
-            {
-              onSuccess: (res) => {
-                setRows(res.data ?? []);
-                setOpen(false);
-              },
-            },
-          )
-        }
-      />
-    </Card>
   );
 }

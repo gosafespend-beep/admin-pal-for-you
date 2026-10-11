@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { AdminLayout } from "./components/admin/AdminLayout";
+import { RouteError } from "./components/admin/RouteError";
 
 // Lazy load all page components
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -12,13 +13,11 @@ const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
 const Users = lazy(() => import("./pages/admin/Users"));
 const UserDetail = lazy(() => import("./pages/admin/UserDetail"));
-const Transactions = lazy(() => import("./pages/admin/Transactions"));
-const Waitlist = lazy(() => import("./pages/admin/Waitlist"));
+const EmailList = lazy(() => import("./pages/admin/EmailList"));
 const Subscriptions = lazy(() => import("./pages/admin/Subscriptions"));
 const Billing = lazy(() => import("./pages/admin/Billing"));
 const Growth = lazy(() => import("./pages/admin/Growth"));
 const DataRequests = lazy(() => import("./pages/admin/DataRequests"));
-const Support = lazy(() => import("./pages/admin/Support"));
 const Marketing = lazy(() => import("./pages/admin/Marketing"));
 const Alerts = lazy(() => import("./pages/admin/Alerts"));
 const SystemHealth = lazy(() => import("./pages/admin/SystemHealth"));
@@ -74,6 +73,7 @@ const RootLayout = () => (
 const router = createBrowserRouter([
   {
     element: <RootLayout />,
+    errorElement: <RouteError />,
     children: [
       { path: "/login", element: <AdminLogin /> },
       { path: "/unsubscribe", element: <Unsubscribe /> },
@@ -85,12 +85,12 @@ const router = createBrowserRouter([
           { path: "dashboard", element: <Dashboard /> },
           { path: "users", element: <Users /> },
           { path: "users/:id", element: <UserDetail /> },
-          { path: "transactions", element: <Transactions /> },
-          { path: "waitlist", element: <Waitlist /> },
+          { path: "email-list", element: <EmailList /> },
+          // The page used to be called Waitlist; keep old links and bookmarks working.
+          { path: "waitlist", element: <Navigate to="/email-list" replace /> },
           { path: "billing", element: <Billing /> },
           { path: "growth", element: <Growth /> },
           { path: "data-requests", element: <DataRequests /> },
-          { path: "support", element: <Support /> },
           { path: "marketing", element: <Marketing /> },
           { path: "alerts", element: <Alerts /> },
           { path: "system", element: <SystemHealth /> },

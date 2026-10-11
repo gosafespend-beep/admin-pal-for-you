@@ -17,13 +17,20 @@ interface NavItem {
   icon: LucideIcon;
 }
 
+export interface NavBadge {
+  count: number;
+  tone: "warning" | "problem";
+}
+
 interface SidebarNavGroupProps {
   label: string;
   items: NavItem[];
   className?: string;
+  /** Small count pills keyed by route, for example open alerts. */
+  badges?: Record<string, NavBadge | undefined>;
 }
 
-export function SidebarNavGroup({ label, items, className }: SidebarNavGroupProps) {
+export function SidebarNavGroup({ label, items, className, badges }: SidebarNavGroupProps) {
   const location = useLocation();
 
   const isActive = (path: string) =>
@@ -72,6 +79,17 @@ export function SidebarNavGroup({ label, items, className }: SidebarNavGroupProp
                     />
                   </div>
                   <span className="text-sm font-medium">{item.title}</span>
+                  {badges?.[item.url] && badges[item.url]!.count > 0 && (
+                    <span
+                      className={cn(
+                        "ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold group-data-[collapsible=icon]:hidden",
+                        badges[item.url]!.tone === "problem" ? "bg-destructive text-destructive-foreground" : "bg-warning text-warning-foreground",
+                      )}
+                    >
+                      <span aria-hidden="true">{badges[item.url]!.count}</span>
+                      <span className="sr-only">{badges[item.url]!.count} open</span>
+                    </span>
+                  )}
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>

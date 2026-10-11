@@ -83,11 +83,6 @@ export interface UserOverview {
   notifications: { billReminders: boolean; budgetAlerts: boolean; marketingEmails: boolean; weeklySummary: boolean } | null;
 }
 
-export interface RevealedTransaction {
-  id: string; type: "expense" | "income"; date: string; amount: number; currency: string;
-  category?: string | null; source?: string | null; note?: string | null;
-}
-
 export interface UserDetailResponse {
   overview: UserOverview;
   transactionsMasked: boolean;
@@ -111,20 +106,6 @@ export function useAdminUserDetail(userId: string | undefined) {
 }
 
 export type UserAction = 'suspend' | 'unsuspend' | 'delete' | 'promote' | 'demote' | 'resend_confirmation';
-
-/** Shows a person's recent transactions. Needs a written reason, which is audited. */
-export function useRevealTransactions() {
-  return useMutation({
-    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
-      invokeAdmin<{ message: string; data: RevealedTransaction[] }>("admin-user-actions", {
-        method: "POST",
-        body: { userId, action: "reveal_transactions", reason },
-      }),
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
-}
 
 export function useAdminUserActions() {
   const queryClient = useQueryClient();

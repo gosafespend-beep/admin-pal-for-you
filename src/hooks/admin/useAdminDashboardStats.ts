@@ -32,6 +32,9 @@ export interface DashboardStats {
   };
   trends: {
     userTrend: number;
+    /** Absent until the updated admin-stats function is deployed. */
+    signupsThisMonth?: number;
+    signupsLastMonth?: number;
   };
   charts: {
     monthlyData: Array<{

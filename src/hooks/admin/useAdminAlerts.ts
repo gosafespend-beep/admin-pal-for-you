@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { invokeAdmin } from "@/lib/adminApi";
+import { summarizeAlerts } from "@/lib/shell";
 
 export interface OpsAlert {
   fingerprint: string;
@@ -31,6 +32,18 @@ export function useOpsAlerts() {
     queryKey: ["admin", "alerts"],
     queryFn: () => invokeAdmin<AlertsResponse>("admin-alerts"),
     staleTime: 30_000,
+  });
+}
+
+/** Counts for the sidebar badge. Same data as the Alerts page, polled gently so the badge stays honest. */
+export function useAlertSummary() {
+  return useQuery({
+    queryKey: ["admin", "alerts"],
+    queryFn: () => invokeAdmin<AlertsResponse>("admin-alerts"),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
+    select: (d) => summarizeAlerts(d.active),
   });
 }
 
