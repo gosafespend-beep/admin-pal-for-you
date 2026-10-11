@@ -68,3 +68,9 @@ verify_jwt = false
 
 [functions.lifecycle-unsubscribe]
 verify_jwt = false
+
+[functions.admin-controls]
+verify_jwt = false
+
+[functions.app-config]
+verify_jwt = false
