@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useAdminUserDetail, useAdminUserActions, useRevokeSession, type UserAction } from "@/hooks/admin/useAdminUserDetail";
 import { UserNotes } from "@/components/admin/UserNotes";
-import { OverviewTab, ActivityTab, StoreEntitlements, MaskedTransactions } from "@/components/admin/UserOverview";
+import { OverviewTab, ActivityTab, StoreEntitlements } from "@/components/admin/UserOverview";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -325,14 +325,11 @@ export default function UserDetail() {
         </div>
       </div>
 
-      {/* Tabs: Transactions, Subscription, Sessions */}
+      {/* Tabs: Overview, Activity, Subscription, Sessions */}
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="bg-muted/50 p-1 flex-wrap h-auto">
           <TabsTrigger value="overview" className="data-[state=active]:bg-background">Overview</TabsTrigger>
           <TabsTrigger value="activity" className="data-[state=active]:bg-background">Activity</TabsTrigger>
-          <TabsTrigger value="transactions" className="data-[state=active]:bg-background">
-            Transactions ({activitySummary.totalTransactions})
-          </TabsTrigger>
           <TabsTrigger value="subscription" className="data-[state=active]:bg-background">
             Subscription
           </TabsTrigger>
@@ -349,11 +346,6 @@ export default function UserDetail() {
         {/* Activity Tab */}
         <TabsContent value="activity">
           <ActivityTab overview={overview} />
-        </TabsContent>
-
-        {/* Transactions Tab (masked by default) */}
-        <TabsContent value="transactions">
-          {id && <MaskedTransactions userId={id} totals={{ expenses: activitySummary.totalExpenses, incomes: activitySummary.totalIncomes }} />}
         </TabsContent>
 
         {/* Subscription Tab */}

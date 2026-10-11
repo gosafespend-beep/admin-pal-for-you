@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
-import { useSupportLookup } from "@/hooks/admin/useAdminSupport";
+import { usePeopleSearch } from "@/hooks/admin/useAdminUsers";
 import { useNavigate } from "react-router-dom";
-import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen, LifeBuoy, Megaphone, BellRing, Activity, Mail, Newspaper, SlidersHorizontal } from "lucide-react";
+import { Search, LayoutDashboard, Users, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen, Megaphone, BellRing, Activity, Mail, Newspaper, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -15,12 +15,10 @@ import {
 const pages = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, keywords: "home overview stats" },
   { name: "Users", path: "/users", icon: Users, keywords: "members accounts people" },
-  { name: "Transactions", path: "/transactions", icon: Receipt, keywords: "expenses income payments" },
   { name: "Billing", path: "/billing", icon: CreditCard, keywords: "mrr arr revenue trials churn paystack" },
   { name: "Subscriptions", path: "/subscriptions", icon: CreditCard, keywords: "plans billing" },
   { name: "Email list", path: "/email-list", icon: Newspaper, keywords: "newsletter waitlist subscribers signups emails" },
   { name: "Settings", path: "/settings", icon: Settings, keywords: "config health admins" },
-  { name: "Support", path: "/support", icon: LifeBuoy, keywords: "help lookup find customer reply macro email ticket" },
   { name: "Marketing", path: "/marketing", icon: Megaphone, keywords: "social posts agents ai spend credits instagram threads facebook pipeline tokens" },
   { name: "Messages", path: "/messages", icon: Mail, keywords: "email lifecycle welcome nudge trial reminder unsubscribe send campaign" },
   { name: "App controls", path: "/app-controls", icon: SlidersHorizontal, keywords: "feature flags maintenance banner minimum version force update rollout remote config" },
@@ -46,7 +44,7 @@ export function AdminSearch() {
     const t = setTimeout(() => setDebounced(query.trim()), 300);
     return () => clearTimeout(t);
   }, [query]);
-  const people = useSupportLookup(open ? debounced : "");
+  const people = usePeopleSearch(open ? debounced : "");
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {

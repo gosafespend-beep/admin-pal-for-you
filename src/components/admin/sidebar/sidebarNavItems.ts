@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   Users,
-  Receipt,
   CreditCard,
   Settings,
   BarChart3,
@@ -11,7 +10,6 @@ import {
   Wallet,
   TrendingUp,
   ShieldCheck,
-  LifeBuoy,
   Megaphone,
   BellRing,
   Activity,
@@ -26,14 +24,12 @@ export const overviewNavItems = [
 
 export const userNavItems = [
   { title: "Users", url: "/users", icon: Users },
-  { title: "Support", url: "/support", icon: LifeBuoy },
   { title: "Messages", url: "/messages", icon: Mail },
   { title: "Email list", url: "/email-list", icon: Newspaper },
   { title: "Data requests", url: "/data-requests", icon: ShieldCheck },
 ];
 
 export const financeNavItems = [
-  { title: "Transactions", url: "/transactions", icon: Receipt },
   { title: "Billing", url: "/billing", icon: Wallet },
   { title: "Subscriptions", url: "/subscriptions", icon: CreditCard },
 ];

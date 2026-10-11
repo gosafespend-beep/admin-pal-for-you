@@ -12,9 +12,6 @@ verify_jwt = false
 [functions.admin-users]
 verify_jwt = false
 
-[functions.admin-transactions]
-verify_jwt = false
-
 [functions.admin-waitlist]
 verify_jwt = false
 
@@ -43,9 +40,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.admin-data-requests]
-verify_jwt = false
-
-[functions.admin-support]
 verify_jwt = false
 
 [functions.admin-marketing]
