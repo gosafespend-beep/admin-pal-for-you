@@ -21,6 +21,8 @@ const routeLabels: Record<string, string> = {
   marketing: "Marketing",
   alerts: "Alerts",
   system: "System health",
+  messages: "Messages",
+  "app-controls": "App controls",
   analytics: "Analytics",
   "audit-log": "Audit Log",
   blog: "Blog",

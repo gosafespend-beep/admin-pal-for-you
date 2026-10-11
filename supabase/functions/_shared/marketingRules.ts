@@ -48,6 +48,8 @@ export interface MarketingOverview {
   jobs: Array<{ name: string; schedule: string; active: boolean; target: string; lastRunAt: string | null; lastStatus: string | null }>;
   flags: Array<{ key: string; value: string; updatedAt: string }>;
   topPosts: Array<{ channel: string; format: string | null; postedAt: string; views: number; reach: number | null; engagementRate: number | null; caption: string }>;
+  /** Things someone paused from the Marketing page and has not resumed. Added by the edge function. */
+  pauses?: Array<{ scope: "agent" | "channel"; target: string; reason: string; pausedAt: string; batch: string | null }>;
 }
 
 export type ErrorKind = "credits" | "rate_limit" | "auth" | "parse" | "other";
@@ -106,7 +108,10 @@ export function assessMarketing(o: MarketingOverview, now: Date = new Date()): F
   }
 
   // ---- has anything been posted --------------------------------------------
-  if (enabled.length > 0) {
+  const pauses = o.pauses ?? [];
+  const paused = pauses.length > 0;
+
+  if (enabled.length > 0 && !paused) {
     const last = o.publishing.lastPublishedAt;
     if (!last) {
       add("never-posted", "problem", "Nothing has ever been posted", "Channels are switched on but the publish queue has no published posts.");
@@ -165,12 +170,22 @@ export function assessMarketing(o: MarketingOverview, now: Date = new Date()): F
   }
 
   // ---- settings --------------------------------------------------------------------
+  if (paused) {
+    const agents = pauses.filter((p) => p.scope === "agent").length;
+    const channels = pauses.filter((p) => p.scope === "channel").length;
+    const since = pauses.map((p) => p.pausedAt).sort()[0];
+    const parts = [agents ? plural(agents, "agent") : "", channels ? plural(channels, "channel") : ""].filter(Boolean).join(" and ");
+    const days = daysBetween(since, now);
+    add("paused", days >= 14 ? "warning" : "info", days >= 14 ? `Marketing has been paused for ${plural(days, "day")}` : "Marketing is paused",
+      `${parts} paused since ${dayText(since)}: ${pauses.find((p) => p.pausedAt === since)?.reason ?? ""}. Nothing new is written or posted until it is resumed on the Marketing page.`);
+  }
+
   const reportFrom = o.flags.find((f) => f.key === "report_from")?.value ?? "";
   if (/replace_with|your_domain|example\./i.test(reportFrom)) {
     add("report-sender", "warning", "The weekly report's sender address is still a placeholder", `It is set to "${reportFrom}", so report emails will not send.`);
   }
 
-  if (!out.some((f) => f.severity === "problem" || f.severity === "warning")) {
+  if (!paused && !out.some((f) => f.severity === "problem" || f.severity === "warning")) {
     add("healthy", "ok", "The marketing system looks healthy", `${plural(o.runs.last7d.ok, "run")} succeeded in the last 7 days and posts are going out.`);
   }
   return out.sort((a, b) => RANK[a.severity] - RANK[b.severity]);
