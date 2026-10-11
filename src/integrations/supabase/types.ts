@@ -189,6 +189,93 @@ export type Database = {
           },
         ]
       }
+      app_control: {
+        Row: {
+          android_latest: string | null
+          android_min: string | null
+          android_store_url: string | null
+          banner_active: boolean
+          banner_ends_at: string | null
+          banner_kind: string
+          banner_message: string
+          banner_severity: string
+          banner_starts_at: string | null
+          id: number
+          ios_latest: string | null
+          ios_min: string | null
+          ios_store_url: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          android_latest?: string | null
+          android_min?: string | null
+          android_store_url?: string | null
+          banner_active?: boolean
+          banner_ends_at?: string | null
+          banner_kind?: string
+          banner_message?: string
+          banner_severity?: string
+          banner_starts_at?: string | null
+          id?: number
+          ios_latest?: string | null
+          ios_min?: string | null
+          ios_store_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          android_latest?: string | null
+          android_min?: string | null
+          android_store_url?: string | null
+          banner_active?: boolean
+          banner_ends_at?: string | null
+          banner_kind?: string
+          banner_message?: string
+          banner_severity?: string
+          banner_starts_at?: string | null
+          id?: number
+          ios_latest?: string | null
+          ios_min?: string | null
+          ios_store_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      app_flags: {
+        Row: {
+          description: string
+          enabled: boolean
+          key: string
+          platforms: string[]
+          public: boolean
+          rollout_pct: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          description: string
+          enabled?: boolean
+          key: string
+          platforms?: string[]
+          public?: boolean
+          rollout_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          description?: string
+          enabled?: boolean
+          key?: string
+          platforms?: string[]
+          public?: boolean
+          rollout_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           key: string
@@ -593,6 +680,69 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      data_requests: {
+        Row: {
+          channel: string
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          due_at: string
+          export_generated_at: string | null
+          handled_by: string | null
+          id: string
+          identity_verified_at: string | null
+          received_at: string
+          request_type: string
+          requester_email: string
+          resolution: string | null
+          status: string
+          subject_user_id: string | null
+          updated_at: string
+          verification_note: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          channel?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          due_at: string
+          export_generated_at?: string | null
+          handled_by?: string | null
+          id?: string
+          identity_verified_at?: string | null
+          received_at?: string
+          request_type: string
+          requester_email: string
+          resolution?: string | null
+          status?: string
+          subject_user_id?: string | null
+          updated_at?: string
+          verification_note?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          channel?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          due_at?: string
+          export_generated_at?: string | null
+          handled_by?: string | null
+          id?: string
+          identity_verified_at?: string | null
+          received_at?: string
+          request_type?: string
+          requester_email?: string
+          resolution?: string | null
+          status?: string
+          subject_user_id?: string | null
+          updated_at?: string
+          verification_note?: string | null
+          verified_by?: string | null
+        }
+        Relationships: []
       }
       debt_payments: {
         Row: {
@@ -1169,6 +1319,159 @@ export type Database = {
           },
         ]
       }
+      lifecycle_sends: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: number
+          provider_id: string | null
+          status: string
+          template_key: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: number
+          provider_id?: string | null
+          status: string
+          template_key: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: number
+          provider_id?: string | null
+          status?: string
+          template_key?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      lifecycle_settings: {
+        Row: {
+          app_url: string
+          daily_cap: number
+          id: number
+          min_gap_hours: number
+          mode: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          app_url?: string
+          daily_cap?: number
+          id?: number
+          min_gap_hours?: number
+          mode?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          app_url?: string
+          daily_cap?: number
+          id?: number
+          min_gap_hours?: number
+          mode?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      lifecycle_templates: {
+        Row: {
+          audience: string
+          body: string
+          enabled: boolean
+          key: string
+          live_since: string | null
+          subject: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          audience?: string
+          body: string
+          enabled?: boolean
+          key: string
+          live_since?: string | null
+          subject: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          audience?: string
+          body?: string
+          enabled?: boolean
+          key?: string
+          live_since?: string | null
+          subject?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      lifecycle_unsub_tokens: {
+        Row: {
+          created_at: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          token?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      marketing_pauses: {
+        Row: {
+          batch: string | null
+          id: string
+          paused_at: string
+          paused_by: string
+          previous_state: string
+          reason: string
+          resume_reason: string | null
+          resumed_at: string | null
+          resumed_by: string | null
+          scope: string
+          target: string
+        }
+        Insert: {
+          batch?: string | null
+          id?: string
+          paused_at?: string
+          paused_by: string
+          previous_state: string
+          reason: string
+          resume_reason?: string | null
+          resumed_at?: string | null
+          resumed_by?: string | null
+          scope: string
+          target: string
+        }
+        Update: {
+          batch?: string | null
+          id?: string
+          paused_at?: string
+          paused_by?: string
+          previous_state?: string
+          reason?: string
+          resume_reason?: string | null
+          resumed_at?: string | null
+          resumed_by?: string | null
+          scope?: string
+          target?: string
+        }
+        Relationships: []
+      }
       monthly_reports: {
         Row: {
           created_at: string
@@ -1321,6 +1624,60 @@ export type Database = {
           updated_at?: string
           user_id?: string
           weekly_summary?: boolean
+        }
+        Relationships: []
+      }
+      ops_alerts: {
+        Row: {
+          acknowledged_by: string | null
+          acknowledged_reason: string | null
+          acknowledged_until: string | null
+          created_at: string
+          detail: string
+          fingerprint: string
+          first_seen_at: string
+          last_notified_at: string | null
+          last_seen_at: string
+          notify_count: number
+          resolved_at: string | null
+          seen_count: number
+          severity: string
+          source: string
+          title: string
+        }
+        Insert: {
+          acknowledged_by?: string | null
+          acknowledged_reason?: string | null
+          acknowledged_until?: string | null
+          created_at?: string
+          detail?: string
+          fingerprint: string
+          first_seen_at?: string
+          last_notified_at?: string | null
+          last_seen_at?: string
+          notify_count?: number
+          resolved_at?: string | null
+          seen_count?: number
+          severity: string
+          source: string
+          title: string
+        }
+        Update: {
+          acknowledged_by?: string | null
+          acknowledged_reason?: string | null
+          acknowledged_until?: string | null
+          created_at?: string
+          detail?: string
+          fingerprint?: string
+          first_seen_at?: string
+          last_notified_at?: string | null
+          last_seen_at?: string
+          notify_count?: number
+          resolved_at?: string | null
+          seen_count?: number
+          severity?: string
+          source?: string
+          title?: string
         }
         Relationships: []
       }
@@ -2685,6 +3042,45 @@ export type Database = {
         }
         Relationships: []
       }
+      support_macros: {
+        Row: {
+          active: boolean
+          body: string
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          subject: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          body: string
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          subject: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          body?: string
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          subject?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       transfers: {
         Row: {
           amount: number
@@ -3015,6 +3411,10 @@ export type Database = {
           count: number
         }[]
       }
+      admin_analytics_core: { Args: never; Returns: Json }
+      admin_app_versions: { Args: { p_days?: number }; Returns: Json }
+      admin_billing_overview: { Args: never; Returns: Json }
+      admin_consent_summary: { Args: never; Returns: Json }
       admin_data_health: {
         Args: never
         Returns: {
@@ -3033,6 +3433,7 @@ export type Database = {
           event: string
         }[]
       }
+      admin_export_user_data: { Args: { p_user: string }; Returns: Json }
       admin_feature_usage: {
         Args: never
         Returns: {
@@ -3042,6 +3443,63 @@ export type Database = {
           unique_sessions: number
           unique_users: number
         }[]
+      }
+      admin_find_user_by_email: { Args: { p_email: string }; Returns: string }
+      admin_growth_metrics: { Args: { p_weeks?: number }; Returns: Json }
+      admin_health_signals: { Args: never; Returns: Json }
+      admin_lifecycle_candidates: {
+        Args: { p_key: string; p_limit?: number }
+        Returns: {
+          email: string
+          first_name: string
+          trial_end: string
+          user_id: string
+        }[]
+      }
+      admin_lifecycle_overview: { Args: never; Returns: Json }
+      admin_list_users: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_order?: string
+          p_plan?: string
+          p_platform?: string
+          p_role?: string
+          p_search?: string
+          p_sort?: string
+          p_stage?: string
+          p_status?: string
+          p_verified?: string
+        }
+        Returns: Json
+      }
+      admin_marketing_overview: { Args: never; Returns: Json }
+      admin_marketing_pause: {
+        Args: {
+          p_admin: string
+          p_batch?: string
+          p_reason: string
+          p_scope: string
+          p_target: string
+        }
+        Returns: Json
+      }
+      admin_marketing_pause_all: {
+        Args: { p_admin: string; p_reason: string }
+        Returns: Json
+      }
+      admin_marketing_resume: {
+        Args: {
+          p_admin: string
+          p_reason: string
+          p_scope: string
+          p_target: string
+        }
+        Returns: Json
+      }
+      admin_marketing_resume_all: {
+        Args: { p_admin: string; p_reason: string }
+        Returns: Json
       }
       admin_monthly_transaction_stats: {
         Args: never
@@ -3054,6 +3512,7 @@ export type Database = {
           month_label: string
         }[]
       }
+      admin_ops_signals: { Args: never; Returns: Json }
       admin_overview_stats: { Args: never; Returns: Json }
       admin_recent_activity: {
         Args: { p_limit?: number }
@@ -3067,7 +3526,9 @@ export type Database = {
           user_id: string
         }[]
       }
+      admin_retention_report: { Args: never; Returns: Json }
       admin_revenue_stats: { Args: never; Returns: Json }
+      admin_support_snapshot: { Args: { p_user: string }; Returns: Json }
       admin_top_categories: {
         Args: { p_limit?: number }
         Returns: {
@@ -3075,6 +3536,7 @@ export type Database = {
           total_amount: number
         }[]
       }
+      admin_user_360: { Args: { p_user_id: string }; Returns: Json }
       admin_user_engagement_stats: { Args: never; Returns: Json }
       admin_user_signups_chart: {
         Args: never
@@ -3145,6 +3607,8 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      lifecycle_unsub_token: { Args: { p_user: string }; Returns: string }
+      lifecycle_unsubscribe: { Args: { p_token: string }; Returns: boolean }
       list_user_sessions: {
         Args: { p_user_id: string }
         Returns: {
