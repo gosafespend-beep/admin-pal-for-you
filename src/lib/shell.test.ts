@@ -9,6 +9,8 @@ describe("pageName / documentTitle", () => {
     expect(pageName("/users")).toBe("Users");
     expect(pageName("/users/86d6c8a8-183c-484b-8109-59d8b9c7e554")).toBe("User");
     expect(pageName("/blog")).toBe("Blog");
+    expect(pageName("/email-list")).toBe("Email list");
+    expect(pageName("/waitlist")).toBe("Email list");
     expect(pageName("/blog/new")).toBe("Blog editor");
     expect(pageName("/blog/editor/abc")).toBe("Blog editor");
     expect(pageName("/app-controls")).toBe("App controls");

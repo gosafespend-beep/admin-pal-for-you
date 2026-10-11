@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   Users,
   Receipt,
-  ClipboardList,
   CreditCard,
   Settings,
   BarChart3,
@@ -17,6 +16,7 @@ import {
   BellRing,
   Activity,
   Mail,
+  Newspaper,
   SlidersHorizontal,
 } from "lucide-react";
 
@@ -28,7 +28,7 @@ export const userNavItems = [
   { title: "Users", url: "/users", icon: Users },
   { title: "Support", url: "/support", icon: LifeBuoy },
   { title: "Messages", url: "/messages", icon: Mail },
-  { title: "Waitlist", url: "/waitlist", icon: ClipboardList },
+  { title: "Email list", url: "/email-list", icon: Newspaper },
   { title: "Data requests", url: "/data-requests", icon: ShieldCheck },
 ];
 

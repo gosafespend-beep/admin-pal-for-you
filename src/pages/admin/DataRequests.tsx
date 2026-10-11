@@ -288,7 +288,7 @@ function HeldTab() {
               </p>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">Also on file: {c.waitlist} waitlist sign-ups and {c.ebookLeads} ebook leads, who joined separately from accounts.</p>
+          <p className="text-xs text-muted-foreground">Also on file: {c.waitlist} email-list sign-ups and {c.ebookLeads} ebook leads, who joined separately from accounts.</p>
         </CardContent>
       </Card>
 

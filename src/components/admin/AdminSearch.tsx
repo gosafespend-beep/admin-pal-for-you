@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSupportLookup } from "@/hooks/admin/useAdminSupport";
 import { useNavigate } from "react-router-dom";
-import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen, LifeBuoy, Megaphone, BellRing, Activity, Mail, SlidersHorizontal } from "lucide-react";
+import { Search, LayoutDashboard, Users, Receipt, CreditCard, ClipboardList, Settings, FileText, BarChart3, ScrollText, BookOpen, LifeBuoy, Megaphone, BellRing, Activity, Mail, Newspaper, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -18,7 +18,7 @@ const pages = [
   { name: "Transactions", path: "/transactions", icon: Receipt, keywords: "expenses income payments" },
   { name: "Billing", path: "/billing", icon: CreditCard, keywords: "mrr arr revenue trials churn paystack" },
   { name: "Subscriptions", path: "/subscriptions", icon: CreditCard, keywords: "plans billing" },
-  { name: "Waitlist", path: "/waitlist", icon: ClipboardList, keywords: "signups emails" },
+  { name: "Email list", path: "/email-list", icon: Newspaper, keywords: "newsletter waitlist subscribers signups emails" },
   { name: "Settings", path: "/settings", icon: Settings, keywords: "config health admins" },
   { name: "Support", path: "/support", icon: LifeBuoy, keywords: "help lookup find customer reply macro email ticket" },
   { name: "Marketing", path: "/marketing", icon: Megaphone, keywords: "social posts agents ai spend credits instagram threads facebook pipeline tokens" },

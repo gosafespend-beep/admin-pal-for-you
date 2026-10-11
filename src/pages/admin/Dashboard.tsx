@@ -3,7 +3,7 @@ import {
   Users,
   Receipt,
   Wallet,
-  ClipboardList,
+  Newspaper,
   Activity,
   TrendingUp,
   Zap,
@@ -151,10 +151,10 @@ export default function Dashboard() {
               variant="info"
             />
             <StatsCard
-              title="Waitlist and newsletter"
+              title="Email list"
               value={formatNumber(stats?.overview.waitlistCount || 0)}
-              subtitle="Signed up before launch"
-              icon={ClipboardList}
+              subtitle="Newsletter and pre-launch sign-ups"
+              icon={Newspaper}
               variant="warning"
             />
           </>

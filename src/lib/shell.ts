@@ -10,7 +10,7 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/users$/, "Users"],
   [/^\/support/, "Support"],
   [/^\/messages/, "Messages"],
-  [/^\/waitlist/, "Waitlist"],
+  [/^\/(email-list|waitlist)/, "Email list"],
   [/^\/data-requests/, "Data requests"],
   [/^\/transactions/, "Transactions"],
   [/^\/billing/, "Billing"],

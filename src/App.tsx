@@ -14,7 +14,7 @@ const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
 const Users = lazy(() => import("./pages/admin/Users"));
 const UserDetail = lazy(() => import("./pages/admin/UserDetail"));
 const Transactions = lazy(() => import("./pages/admin/Transactions"));
-const Waitlist = lazy(() => import("./pages/admin/Waitlist"));
+const EmailList = lazy(() => import("./pages/admin/EmailList"));
 const Subscriptions = lazy(() => import("./pages/admin/Subscriptions"));
 const Billing = lazy(() => import("./pages/admin/Billing"));
 const Growth = lazy(() => import("./pages/admin/Growth"));
@@ -88,7 +88,9 @@ const router = createBrowserRouter([
           { path: "users", element: <Users /> },
           { path: "users/:id", element: <UserDetail /> },
           { path: "transactions", element: <Transactions /> },
-          { path: "waitlist", element: <Waitlist /> },
+          { path: "email-list", element: <EmailList /> },
+          // The page used to be called Waitlist; keep old links and bookmarks working.
+          { path: "waitlist", element: <Navigate to="/email-list" replace /> },
           { path: "billing", element: <Billing /> },
           { path: "growth", element: <Growth /> },
           { path: "data-requests", element: <DataRequests /> },
