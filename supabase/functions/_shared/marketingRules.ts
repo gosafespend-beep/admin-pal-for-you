@@ -50,6 +50,8 @@ export interface MarketingOverview {
   topPosts: Array<{ channel: string; format: string | null; postedAt: string; views: number; reach: number | null; engagementRate: number | null; caption: string }>;
   /** Things someone paused from the Marketing page and has not resumed. Added by the edge function. */
   pauses?: Array<{ scope: "agent" | "channel"; target: string; reason: string; pausedAt: string; batch: string | null }>;
+  /** Runs in the last 24 hours that succeeded on the OpenAI backup because Anthropic failed. Added by the caller, like `pauses`. */
+  fallback?: { runs24h: number; lastAt: string | null; kind: "credits" | "auth" | "rate_limit" | "overloaded" | "server" | "network" | null };
 }
 
 export type ErrorKind = "credits" | "rate_limit" | "auth" | "parse" | "other";
@@ -108,6 +110,22 @@ export function assessMarketing(o: MarketingOverview, now: Date = new Date()): F
   }
 
   // ---- has anything been posted --------------------------------------------
+  // The backup keeps posts flowing, which would also hide a billing or key problem. So using it is a warning of its own.
+  const backup = o.fallback;
+  if (backup && backup.runs24h > 0) {
+    const credits = backup.kind === "credits";
+    const why = credits ? "Anthropic's credit balance is too low"
+      : backup.kind === "auth" ? "Anthropic rejected our key"
+      : backup.kind === "rate_limit" ? "Anthropic is rate limiting us"
+      : backup.kind === "overloaded" ? "Anthropic is overloaded"
+      : "Anthropic is failing";
+    add("ai-fallback", "warning",
+      credits ? "Anthropic is out of credit: marketing is running on the OpenAI backup" : "Anthropic is failing: marketing is running on the OpenAI backup",
+      `${plural(backup.runs24h, "run")} in the last 24 hours used the backup because ${why}${backup.lastAt ? `, latest ${dayText(backup.lastAt)}` : ""}. ` +
+      "Writing quality and cost can differ from the usual model, and compliance review still needs Anthropic." +
+      (credits ? " Add credit to the Anthropic account to switch back." : " Check the Anthropic account and key."));
+  }
+
   const pauses = o.pauses ?? [];
   const paused = pauses.length > 0;
 

@@ -3,6 +3,7 @@ import { audited } from "../_shared/audit.ts";
 import { errorResponse, HttpError, json, requireAdmin } from "../_shared/http.ts";
 import { explainRefusal, validateControl } from "../_shared/marketingControlRules.ts";
 import { loadPauses } from "../_shared/marketingPauses.ts";
+import { loadFallback } from "../_shared/marketingFallback.ts";
 
 /**
  * The automated marketing system.
@@ -33,9 +34,9 @@ Deno.serve(async (req) => {
     const { adminClient } = ctx;
 
     if (req.method === "GET") {
-      const [overview, pauses] = await Promise.all([adminClient.rpc("admin_marketing_overview"), loadPauses(adminClient)]);
+      const [overview, pauses, fallback] = await Promise.all([adminClient.rpc("admin_marketing_overview"), loadPauses(adminClient), loadFallback(adminClient)]);
       if (overview.error) throw overview.error;
-      return json({ overview: { ...overview.data, pauses } }, 200, cors);
+      return json({ overview: { ...overview.data, pauses, fallback } }, 200, cors);
     }
 
     if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, cors);

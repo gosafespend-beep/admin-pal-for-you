@@ -39,6 +39,12 @@ export default tseslint.config(
     },
   },
   {
+    // The Lovable editor regenerates this file and drops inline lint comments, so the exception lives here.
+    // `timer` is assigned after `finish` is defined because finish clears it, so it cannot be a const.
+    files: ["src/integrations/supabase/previewAuthStorage.ts"],
+    rules: { "prefer-const": "off" },
+  },
+  {
     // Tailwind plugins are loaded with require() by convention.
     files: ["tailwind.config.ts"],
     rules: { "@typescript-eslint/no-require-imports": "off" },

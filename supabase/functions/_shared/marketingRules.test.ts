@@ -133,4 +133,33 @@ describe("assessMarketing", () => {
     expect(f[0]).toMatchObject({ id: "paused", severity: "warning" });
     expect(f[0].title).toBe("Marketing has been paused for 19 days");
   });
+
+  describe("the OpenAI backup", () => {
+    const backup = (over: Partial<NonNullable<MarketingOverview["fallback"]>> = {}) => ({ runs24h: 7, lastAt: "2026-10-09T20:00:00Z", kind: "credits" as const, ...over });
+
+    it("warns that the backup is carrying the work, so a billing problem cannot hide behind it", () => {
+      const f = assessMarketing({ ...healthy, fallback: backup() }, NOW);
+      expect(f.map((x) => [x.id, x.severity])).toEqual([["ai-fallback", "warning"]]);
+      expect(f[0].title).toBe("Anthropic is out of credit: marketing is running on the OpenAI backup");
+      expect(f[0].detail).toContain("7 runs in the last 24 hours");
+      expect(f[0].detail).toContain("Add credit");
+    });
+
+    it("says what is wrong when it is not credit", () => {
+      const f = assessMarketing({ ...healthy, fallback: backup({ kind: "overloaded" }) }, NOW)[0];
+      expect(f.title).toBe("Anthropic is failing: marketing is running on the OpenAI backup");
+      expect(f.detail).toContain("Anthropic is overloaded");
+      expect(f.detail).not.toContain("Add credit");
+    });
+
+    it("says nothing when the backup was not used", () => {
+      expect(ids({ fallback: { runs24h: 0, lastAt: null, kind: null } })).toEqual(["healthy"]);
+      expect(ids({})).toEqual(["healthy"]);
+    });
+
+    it("is not reported as the outage itself: runs that succeed on the backup keep the credit alarm off", () => {
+      const f = assessMarketing({ ...healthy, runs: { ...healthy.runs, last24h: { ok: 7, failed: 0 }, last7d: { ok: 7, failed: 40 }, failing: [creditFailure] }, fallback: backup() }, NOW);
+      expect(f.map((x) => x.id)).toEqual(["ai-fallback"]);
+    });
+  });
 });
