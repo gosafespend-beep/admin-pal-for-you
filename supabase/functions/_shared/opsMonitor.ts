@@ -13,6 +13,7 @@
 import type { AnyClient } from "./http.ts";
 import { assessMarketing, type MarketingOverview } from "./marketingRules.ts";
 import { loadPauses } from "./marketingPauses.ts";
+import { loadFallback } from "./marketingFallback.ts";
 import { collectHealth } from "./health.ts";
 import { assessHealth } from "./healthRules.ts";
 import {
@@ -38,7 +39,7 @@ export async function detectProblems(admin: AnyClient, now: Date): Promise<Detec
   if (overview.error) throw new Error(`admin_marketing_overview failed: ${overview.error.message}`);
   if (signals.error) throw new Error(`admin_ops_signals failed: ${signals.error.message}`);
 
-  const marketing: Detected[] = assessMarketing({ ...(overview.data as MarketingOverview), pauses: await loadPauses(admin) }, now)
+  const marketing: Detected[] = assessMarketing({ ...(overview.data as MarketingOverview), pauses: await loadPauses(admin), fallback: await loadFallback(admin, now) }, now)
     .filter((f) => f.severity === "problem" || f.severity === "warning")
     .map((f) => ({
       fingerprint: `marketing:${f.id}`,

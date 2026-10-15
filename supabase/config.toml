@@ -68,3 +68,9 @@ verify_jwt = false
 
 [functions.app-config]
 verify_jwt = false
+
+[functions.agent-run]
+verify_jwt = false
+
+[functions.generate-topics]
+verify_jwt = false
